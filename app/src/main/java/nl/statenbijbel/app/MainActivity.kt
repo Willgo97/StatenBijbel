@@ -47,8 +47,10 @@ object Index {
     private lateinit var begin: IntArray
 
     fun bouw() {
-        val l = ArrayList<Pair<Int, Int>>(1200)
-        val b = IntArray(Bijbel.books.size + 2)
+        val l = ArrayList<Pair<Int, Int>>(1500)
+        // De tabel wordt op boeknummer geïndexeerd, niet op volgorde: het
+        // kerkboek begint bij 101.
+        val b = IntArray((Bijbel.books.maxOfOrNull { it.b } ?: 0) + 2)
         Bijbel.books.forEach { boek ->
             b[boek.b] = l.size
             for (c in 1..boek.chapters) l.add(boek.b to c)

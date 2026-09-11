@@ -81,8 +81,9 @@ def voeg_toe(extras, boeknr_van_slug, spans_str, norm, WORD,
                 spans = []
 
                 # Bewijsteksten van de catechismus als kanttekeningen.
+                eigen = rij.get("verwijzingen") or p.get("verwijzingen") or {}
                 for merk in rij.get("merken", []):
-                    plaatsen = p["verwijzingen"].get(merk["letter"]) or []
+                    plaatsen = eigen.get(merk["letter"]) or []
                     if not plaatsen:
                         continue
                     note_no += 1

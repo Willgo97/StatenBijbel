@@ -18,6 +18,20 @@ class Book(
 
     /** Bijbelboek of een stuk uit het kerkboek (psalmberijming, belijdenis…). */
     val isBijbel: Boolean get() = soort == "bijbel"
+
+    /** Hoe heet één genummerd blok hier: een vers, een vraag, een artikel? */
+    val eenheid: String
+        get() = when {
+            soort == "bijbel" || soort == "psalm" -> "vers"
+            code == "HCA" -> "vraag"
+            code == "DLR" -> "artikel"
+            else -> "gedeelte"
+        }
+
+    /** In de bijbel heten ze kanttekeningen, in de belijdenis bewijsplaatsen. */
+    val nootNaam: String get() = if (isBijbel) "kanttekening" else "bewijsplaats"
+    val nootNaamMv: String get() = if (isBijbel) "kanttekeningen" else "bewijsplaatsen"
+    val nootKort: String get() = if (isBijbel) "kantt." else "bewijspl."
 }
 
 class Verse(

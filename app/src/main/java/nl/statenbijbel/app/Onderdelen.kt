@@ -228,7 +228,8 @@ fun VersBalk(st: AppState) {
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 if (aantalNoten > 0) {
-                    ActieKnop(Icons.Default.MenuBook, "$aantalNoten kantt.") {
+                    ActieKnop(Icons.Default.MenuBook,
+                        "$aantalNoten ${Bijbel.book(st.boek).nootKort}") {
                         st.wisselKant(st.boek, st.hoofdstuk, v, 0)
                     }
                 }
@@ -306,9 +307,11 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
             Modifier.padding(bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val boek = remember(b) { Bijbel.book(b) }
             Text(
-                if (noten.size == 1) "Kanttekening bij vers $v"
-                else "${noten.size} kanttekeningen bij vers $v",
+                if (noten.size == 1)
+                    boek.nootNaam.replaceFirstChar { it.uppercase() } + " bij ${boek.eenheid} $v"
+                else "${noten.size} ${boek.nootNaamMv} bij ${boek.eenheid} $v",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = k.accent,

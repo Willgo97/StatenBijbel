@@ -261,6 +261,13 @@ def ontleed_pagina(groep, sleutel):
     else:
         rijen = []
         for n, ruw in blokken:
+            # De bewijsteksten staan in een eigen blok áchter de vraag, en de
+            # letters beginnen bij elke vraag opnieuw bij a.  Ze horen dus bij
+            # dít blok, niet bij de pagina.
+            knip = ruw.find('<div class="verse-references"')
+            eigen_verw = verwijzingen_van(ruw[knip:]) if knip != -1 else {}
+            if knip != -1:
+                ruw = ruw[:knip]
             # De verwijsletters eerst vervangen door een merkteken, zodat hun
             # plaats in de tekst bewaard blijft na het strippen van de opmaak.
             gemerkt = re.sub(r'<span class="verwijzing">\s*([a-z]+)\s*</span>',
@@ -281,6 +288,8 @@ def ontleed_pagina(groep, sleutel):
             rij = {"n": n, "tekst": tekst}
             if merken:
                 rij["merken"] = merken
+            if eigen_verw:
+                rij["verwijzingen"] = eigen_verw
             rijen.append(rij)
     return {"titel": titel, "rijen": rijen, "verwijzingen": verw}
 
