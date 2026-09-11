@@ -79,6 +79,10 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
+/** Marge links en rechts van de tekst, en de breedte van de versnummerkolom. */
+val ZIJMARGE = 10.dp
+val VERSGOOT = 22.dp
+
 @Composable
 fun leesStijl(): TextStyle = TextStyle(
     fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
@@ -243,7 +247,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
         state = lijst,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 18.dp, end = 18.dp, top = 10.dp, bottom = 120.dp
+            start = ZIJMARGE, end = ZIJMARGE, top = 10.dp, bottom = 120.dp
         ),
     ) {
         item(key = "kop") {
@@ -311,8 +315,8 @@ private fun VersRegel(
             Text(
                 v.v.toString(),
                 modifier = Modifier
-                    .width(26.dp)
-                    .padding(top = 3.dp, end = 6.dp),
+                    .width(VERSGOOT)
+                    .padding(top = 3.dp, end = 5.dp),
                 textAlign = TextAlign.End,
                 fontSize = (Prefs.tekstGrootte * 0.62f).sp,
                 color = if (kantOpen) k.accent else k.versnummer,

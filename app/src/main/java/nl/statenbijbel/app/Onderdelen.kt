@@ -297,7 +297,7 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(start = 26.dp, top = 4.dp, bottom = 10.dp)
+            .padding(start = VERSGOOT, top = 4.dp, bottom = 10.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(if (k.donker) Color(0x14FFFFFF) else Color(0x0F8A6431))
             .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
