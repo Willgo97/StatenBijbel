@@ -1,0 +1,18 @@
+# Bouwsels
+build/
+app/build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+
+# Machine-specifiek
+local.properties
+
+# Wordt gemaakt door tools/build_db.py; de kopie in app/src/main/assets staat wel in git
+/bijbel.db
+
+# Ondertekensleutel — hoort niet in een repository
+*.jks
+*.keystore
+keystore.properties
