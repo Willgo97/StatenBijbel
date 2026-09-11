@@ -10,6 +10,21 @@ Alles staat in de app zelf: geen internet, geen account, geen wachten.
   Drie Formulieren van Enigheid, de liturgische formulieren en de gebeden
 - Volledig offline, ook de zoekfunctie
 
+## Installeren
+
+Download op je Android-telefoon en open het bestand:
+
+**<https://github.com/Willgo97/StatenBijbel/releases/latest/download/StatenBijbel.apk>**
+
+Die link wijst altijd naar de nieuwste versie. Android vraagt één keer of je
+browser apps mag installeren; dat aanzetten en klaar. Werkt op Android 8.0 en
+nieuwer, op elke telefoon.
+
+> Bij het uitbrengen van een nieuwe versie moet de APK **ook** onder de vaste
+> naam `StatenBijbel.apk` aan de release hangen, anders breekt bovenstaande
+> link. Naast een versienaam als `StatenBijbel-1.3.apk` dus altijd een kopie
+> zonder versienummer meegeven.
+
 ## Wat het doet
 
 **Lezen.** De tekst staat in een schreefletter, met de kanttekeningnummers als
