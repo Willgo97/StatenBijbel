@@ -185,12 +185,19 @@ private fun Bovenbalk(st: AppState, onLeesbalk: () -> Unit) {
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val opschrift = remember(st.boek, st.hoofdstuk) {
+                        Bijbel.hoofdstukTitel(st.boek, st.hoofdstuk)
+                            ?.lineSequence()?.firstOrNull()?.trim()
+                    }
                     Text(
-                        "${boek.name} ${st.hoofdstuk}",
+                        opschrift ?: "${boek.name} ${st.hoofdstuk}",
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 19.sp,
                         color = k.inkt,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     Icon(
                         Icons.Default.ExpandMore, null,
@@ -251,10 +258,17 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
         ),
     ) {
         item(key = "kop") {
+            val titel = remember(b, c) { Bijbel.hoofdstukTitel(b, c) }
+            val regels = titel?.split("\n").orEmpty()
             Column(Modifier.padding(bottom = 14.dp)) {
-                if (c == 1 && boek.title.isNotBlank()) {
+                val boven = when {
+                    !boek.isBijbel -> boek.name
+                    c == 1 && boek.title.isNotBlank() -> boek.title
+                    else -> ""
+                }
+                if (boven.isNotBlank()) {
                     Text(
-                        boek.title,
+                        boven,
                         fontFamily = FontFamily.Serif,
                         fontSize = 14.sp,
                         color = k.gedempt,
@@ -265,7 +279,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                     )
                 }
                 Text(
-                    "${boek.name} ${c}",
+                    regels.firstOrNull()?.trim()?.ifBlank { null } ?: "${boek.name} $c",
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
                     fontSize = 25.sp,
@@ -273,6 +287,18 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (regels.size > 1 && regels[1].isNotBlank()) {
+                    Text(
+                        regels[1].trim(),
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 14.sp,
+                        color = k.gedempt,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                    )
+                }
             }
         }
         items(verzen, key = { it.vid }) { v ->

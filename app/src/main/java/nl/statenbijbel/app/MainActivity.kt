@@ -164,7 +164,8 @@ fun App(activity: ComponentActivity) {
     StatenBijbelTheme {
         val st = remember {
             AppState().apply {
-                boek = Prefs.boek.coerceIn(1, 66)
+                // Ook een plek in het kerkboek moet hersteld kunnen worden.
+                boek = if (Bijbel.bookOrNull(Prefs.boek) != null) Prefs.boek else 1
                 hoofdstuk = Prefs.hoofdstuk
                 springNaarVers = Prefs.vers
             }

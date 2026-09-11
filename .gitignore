@@ -16,3 +16,9 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+
+# Opgehaalde bronpagina's van het kerkboek (tools/haal_extras.py)
+cache-extras/
+/extras.json
+__pycache__/
+*.pyc

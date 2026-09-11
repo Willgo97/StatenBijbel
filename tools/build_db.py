@@ -30,9 +30,12 @@ import os
 import re
 import sqlite3
 import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import unicodedata
 from collections import defaultdict
 from xml.etree import ElementTree as ET
+
+import extras_in_db
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -415,9 +418,10 @@ PRAGMA journal_mode=OFF;
 PRAGMA synchronous=OFF;
 CREATE TABLE books(
     b INTEGER PRIMARY KEY, code TEXT, name TEXT, abbr TEXT, testament TEXT,
-    title TEXT, chapters INTEGER, verses INTEGER, notes INTEGER, alt TEXT);
+    title TEXT, chapters INTEGER, verses INTEGER, notes INTEGER, alt TEXT,
+    soort TEXT);
 CREATE TABLE chapters(
-    b INTEGER, c INTEGER, verses INTEGER, notes INTEGER,
+    b INTEGER, c INTEGER, verses INTEGER, notes INTEGER, titel TEXT,
     PRIMARY KEY(b,c)) WITHOUT ROWID;
 CREATE TABLE verses(
     vid INTEGER PRIMARY KEY, b INTEGER, c INTEGER, v INTEGER,
@@ -618,16 +622,28 @@ def build(src, dst):
                     if len(term) > 1:
                         post_v[term].append(vid)
                 total_v += 1
-            chap_rows.append((bnum, c, len(bych[c]), note_no))
+            chap_rows.append((bnum, c, len(bych[c]), note_no, ""))
             total_n += note_no
 
         book_rows.append((bnum, code, name, abbr, test, btitle,
-                          len(bych), total_v, total_n, alt))
+                          len(bych), total_v, total_n, alt, "bijbel"))
         print("  %-4s %-20s %3d hfd %5d vzn %5d kt" %
               (code, name, len(bych), total_v, total_n))
 
-    db.executemany("INSERT INTO books VALUES(?,?,?,?,?,?,?,?,?,?)", book_rows)
-    db.executemany("INSERT INTO chapters VALUES(?,?,?,?)", chap_rows)
+    # ---- kerkboek: psalmberijming, belijdenissen, formulieren en gebeden
+    extras = extras_in_db.laad(os.path.join(ROOT, "extras.json"))
+    if extras:
+        print("\nKerkboek toevoegen ...")
+        slug_naar_boek = {extras_in_db.slug(b[2]): CODE_NUM[b[1]] for b in BOOKS}
+        vid, nid = extras_in_db.voeg_toe(
+            extras, slug_naar_boek, spans_str, norm, WORD,
+            book_rows, chap_rows, verse_rows, note_rows, xref_rows,
+            post_v, post_n, vid, nid)
+    else:
+        print("\n(extras.json ontbreekt — alleen de bijbeltekst)")
+
+    db.executemany("INSERT INTO books VALUES(?,?,?,?,?,?,?,?,?,?,?)", book_rows)
+    db.executemany("INSERT INTO chapters VALUES(?,?,?,?,?)", chap_rows)
     db.executemany("INSERT INTO verses VALUES(?,?,?,?,?,?,?)", verse_rows)
     db.executemany("INSERT INTO notes VALUES(?,?,?,?,?,?,?,?)", note_rows)
     db.executemany("INSERT INTO xref VALUES(?,?,?,?,?,?,?,?)", xref_rows)

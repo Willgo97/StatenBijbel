@@ -12,9 +12,12 @@ class Span(val kind: Char, val start: Int, val end: Int, val value: String)
 class Book(
     val b: Int, val code: String, val name: String, val abbr: String,
     val testament: String, val title: String, val chapters: Int,
-    val verses: Int, val notes: Int, val alt: String,
+    val verses: Int, val notes: Int, val alt: String, val soort: String,
 ) {
     val zoekterm: String = normaliseer("$name $abbr $alt $code")
+
+    /** Bijbelboek of een stuk uit het kerkboek (psalmberijming, belijdenis…). */
+    val isBijbel: Boolean get() = soort == "bijbel"
 }
 
 class Verse(
@@ -116,8 +119,8 @@ object Bijbel {
         }
         db = SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY)
         books = db.rawQuery(
-            "SELECT b,code,name,abbr,testament,title,chapters,verses,notes,alt " +
-                "FROM books ORDER BY b", null
+            "SELECT b,code,name,abbr,testament,title,chapters,verses,notes,alt," +
+                "soort FROM books ORDER BY b", null
         ).use { c ->
             val l = ArrayList<Book>(66)
             while (c.moveToNext()) {
@@ -125,7 +128,8 @@ object Bijbel {
                     Book(
                         c.getInt(0), c.getString(1), c.getString(2), c.getString(3),
                         c.getString(4), c.getString(5) ?: "", c.getInt(6),
-                        c.getInt(7), c.getInt(8), c.getString(9) ?: ""
+                        c.getInt(7), c.getInt(8), c.getString(9) ?: "",
+                        c.getString(10) ?: "bijbel"
                     )
                 )
             }
@@ -141,8 +145,11 @@ object Bijbel {
     /** "Joh. 3:16" */
     fun ref(b: Int, c: Int, v: Int, end: Int = 0): String {
         val bk = byNum[b] ?: return ""
-        // Een punt alleen bij een echte afkorting: "Joh. 3:16" maar "Ruth 1:1".
-        val punt = if (bk.abbr.equals(bk.name, true)) "" else "."
+        // Een punt alleen bij een echte inkorting van de naam: "Joh. 3:16",
+        // maar "Ruth 1:1", "HC 1:1" en "Ps. ber. 23:1".
+        val punt = if (!bk.abbr.endsWith(".") && !bk.abbr.equals(bk.name, true) &&
+            bk.name.startsWith(bk.abbr, ignoreCase = true)
+        ) "." else ""
         return buildString {
             append(bk.abbr); append(punt); append(' '); append(c)
             if (v > 0) { append(':'); append(v) }
@@ -199,6 +206,22 @@ object Bijbel {
         }
         return out
     }
+
+    private val titelCache = HashMap<Int, Map<Int, String>>()
+
+    /** Opschrift van een hoofdstuk: "Zondag 1", de naam van een formulier… */
+    fun hoofdstukTitels(b: Int): Map<Int, String> = synchronized(titelCache) {
+        titelCache.getOrPut(b) {
+            val m = HashMap<Int, String>()
+            db.rawQuery(
+                "SELECT c,titel FROM chapters WHERE b=? AND titel<>''",
+                arrayOf(b.toString())
+            ).use { while (it.moveToNext()) m[it.getInt(0)] = it.getString(1) }
+            m
+        }
+    }
+
+    fun hoofdstukTitel(b: Int, c: Int): String? = hoofdstukTitels(b)[c]
 
     fun chapterVerseCount(b: Int, c: Int): Int =
         db.rawQuery("SELECT verses FROM chapters WHERE b=? AND c=?",

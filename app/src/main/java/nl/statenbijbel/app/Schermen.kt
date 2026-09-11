@@ -162,7 +162,11 @@ fun KiesScherm(st: AppState) {
                 .navigationBarsPadding(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
-            listOf("OT" to "Oude Testament", "NT" to "Nieuwe Testament").forEach { (code, naam) ->
+            listOf(
+                "OT" to "Oude Testament",
+                "NT" to "Nieuwe Testament",
+                "EX" to "Kerkboek",
+            ).forEach { (code, naam) ->
                 val deel = boeken.filter { it.testament == code }
                 if (deel.isNotEmpty()) {
                     item(key = "kop$code") {
@@ -190,7 +194,8 @@ fun KiesScherm(st: AppState) {
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                "${boek.chapters} hfdst.",
+                                if (boek.isBijbel) "${boek.chapters} hfdst."
+                                else "${boek.chapters} ${if (boek.chapters == 1) "deel" else "delen"}",
                                 fontSize = 12.sp, color = k.gedempt,
                             )
                         }
@@ -205,6 +210,47 @@ fun KiesScherm(st: AppState) {
 private fun HoofdstukKiezer(st: AppState, b: Int) {
     val k = LocalLeeskleuren.current
     val boek = Bijbel.book(b)
+    val titels = remember(b) { Bijbel.hoofdstukTitels(b) }
+
+    // Stukken met een eigen naam (gezangen, formulieren, gebeden) lezen beter
+    // als lijst; genummerde reeksen als raster.
+    if (titels.isNotEmpty() && boek.chapters <= 20) {
+        Column(Modifier.fillMaxSize()) {
+            SchermKop(boek.name, { st.kiesBoek = 0 })
+            LazyColumn(
+                Modifier
+                    .weight(1f)
+                    .navigationBarsPadding(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                items((1..boek.chapters).toList()) { c ->
+                    val t = titels[c].orEmpty().split("\n")
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { st.kiesBoek = 0; st.ga(b, c) }
+                            .padding(horizontal = 18.dp, vertical = 11.dp),
+                    ) {
+                        Text(
+                            t.firstOrNull().orEmpty().ifBlank { "$c" },
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 16.sp,
+                            color = k.inkt,
+                        )
+                        if (t.size > 1 && t[1].isNotBlank()) {
+                            Text(
+                                t[1], fontSize = 12.sp, color = k.gedempt,
+                                modifier = Modifier.padding(top = 1.dp),
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = k.scheiding)
+                }
+            }
+        }
+        return
+    }
+
     Column(Modifier.fillMaxSize()) {
         SchermKop(boek.name, { st.kiesBoek = 0 })
         LazyVerticalGrid(

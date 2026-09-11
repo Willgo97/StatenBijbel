@@ -6,6 +6,8 @@ Alles staat in de app zelf: geen internet, geen account, geen wachten.
 - **31.171 verzen** in de echte Statenvertaling-telling
 - **59.385 kanttekeningen** van de Statenvertalers, met trefwoord
 - **48.466 verwijzingen**, in twee richtingen doorzoekbaar
+- Het hele **kerkboek** erbij: de psalmberijming van 1773, de gezangen, de
+  Drie Formulieren van Enigheid, de liturgische formulieren en de gebeden
 - Volledig offline, ook de zoekfunctie
 
 ## Wat het doet
@@ -40,6 +42,30 @@ Het accent kleurt de kanttekeningnummers, de verwijzingen en de balk bij een
 gekozen vers; elke kleur heeft een eigen variant voor lichte en donkere thema's,
 zodat hij overal leesbaar blijft. Verder traploos instelbare tekstgrootte en
 regelafstand, schreef of schreefloos. De statusbalk kleurt mee.
+
+## Het kerkboek
+
+Achter de bijbelboeken staat alles wat in een Statenbijbel achterin hoort:
+
+| Onderdeel | Omvang |
+|---|---|
+| Psalmen in de berijming van 1773 | 150 psalmen, 1.431 verzen |
+| Gezangen | 13 |
+| Heidelbergse Catechismus | 52 zondagen, 129 vragen |
+| Nederlandse Geloofsbelijdenis | 37 artikelen |
+| Dordtse Leerregels | 5 hoofdstukken, voorrede en besluit |
+| Geloofsbelijdenissen | Apostolicum, Nicea, Athanasius |
+| Liturgische formulieren | 8, van doop tot ban |
+| Christelijke gebeden | 14 |
+
+De **bewijsteksten van de catechismus** werken als de kanttekeningen: achter
+een woord staat een nummer, en daarachter zitten de aangehaalde plaatsen als
+aanklikbare verwijzing. Tik op *Rom. 14:8* bij Zondag 1 en de Statenvertaling
+staat er meteen onder.
+
+Het werkt ook andersom: houd een bijbelvers ingedrukt en kies *verw.*, en je
+ziet niet alleen welke kanttekeningen het aanhalen maar ook waar het in de
+catechismus wordt gebruikt.
 
 ## Bediening
 
@@ -86,8 +112,14 @@ python3 tools/build_db.py STV.xml            # -> bijbel.db
 cp bijbel.db app/src/main/assets/bijbel.db
 ```
 
-Bron: <https://github.com/Isidore-Guild/statenvertaling> — Statenvertaling
-editie 1888 met de kanttekeningen, vrijgegeven onder CC0.
+Bronnen:
+
+- Bijbeltekst en kanttekeningen: <https://github.com/Isidore-Guild/statenvertaling>
+  — Statenvertaling editie 1888, vrijgegeven onder CC0.
+- Kerkboek: bijbel-statenvertaling.com (GBS Bijbel Online), dezelfde editie als
+  het gedrukte kerkboek. De teksten zelf zijn publiek domein (1773 en ouder).
+  `tools/haal_extras.py ophalen` haalt ze op — eenmalig, met een pauze tussen
+  de verzoeken — en `ontleden` maakt er `extras.json` van.
 
 ### Wat het bouwscript oplost
 
@@ -119,6 +151,8 @@ Geen WebView, geen HTML: de tekst wordt als platte tekst plus een compacte
 
 ```
 tools/build_db.py         OSIS -> SQLite (hernummering, kanttekeningen, index)
+tools/haal_extras.py      kerkboek ophalen en ontleden -> extras.json
+tools/extras_in_db.py     kerkboek -> dezelfde tabellen en zoekindex
 app/src/main/assets/      bijbel.db
   .../Bijbel.kt           database, zoekindex, plaatsherkenning
   .../Render.kt           spans -> AnnotatedString
