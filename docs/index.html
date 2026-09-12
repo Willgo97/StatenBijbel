@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StatenBijbel — download</title>
+<meta name="description" content="De Statenvertaling met de complete kanttekeningen en het kerkboek. Android-app, volledig offline.">
+<style>
+:root{ --ink:#1b1917; --muted:#6e6862; --card:#fffdfb; --bg:#f1ece2;
+       --accent:#8a6431; --lijn:rgba(0,0,0,.10); }
+@media (prefers-color-scheme:dark){
+  :root{ --ink:#dedad3; --muted:#938d85; --card:#15171a; --bg:#0c0e10;
+         --accent:#d9b566; --lijn:rgba(255,255,255,.12); }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.card{background:var(--card);border-radius:24px;max-width:460px;width:100%;
+  padding:30px 26px;box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 34px rgba(0,0,0,.12)}
+.logo{width:64px;height:64px;display:block;margin-bottom:20px}
+h1{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:29px;margin:0 0 4px;letter-spacing:-.01em}
+.tag{color:var(--muted);margin:0 0 20px}
+a.btn{display:block;text-align:center;background:var(--accent);color:#fffdfb;
+  text-decoration:none;font-weight:700;font-size:17px;padding:16px;border-radius:16px}
+@media (prefers-color-scheme:dark){ a.btn{color:#20180a} }
+.meta{color:var(--muted);font-size:13px;margin-top:14px;text-align:center}
+.inhoud{margin:24px 0 0;padding:0;list-style:none;font-size:14.5px}
+.inhoud li{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--lijn)}
+.inhoud li:last-child{border-bottom:0}
+.inhoud b{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent);
+  font-weight:600;min-width:72px}
+.note{margin-top:22px;padding-top:18px;border-top:1px solid var(--lijn);
+  color:var(--muted);font-size:13.5px}
+.note p{margin:0 0 9px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="card">
+  <svg class="logo" viewBox="0 0 108 108" aria-hidden="true">
+    <rect width="108" height="108" rx="26" fill="#2f4858"/>
+    <path d="M31,34h19.5c2.5,0 4.5,2 4.5,4.5V76c0,0 -2.5,-3 -9,-3H31z" fill="#f3e8d2"/>
+    <path d="M77,34H57.5c-2.5,0 -4.5,2 -4.5,4.5V76c0,0 2.5,-3 9,-3h15z" fill="#fff"/>
+    <path d="M52,30h4v48h-4z" fill="#c9a227"/>
+    <path d="M44,44h8v4h-8z M44,54h8v4h-8z M56,44h8v4h-8z M56,54h8v4h-8z" fill="#c9a227"/>
+  </svg>
+
+  <h1>StatenBijbel</h1>
+  <p class="tag">De Statenvertaling met de complete kanttekeningen — en het hele
+    kerkboek erbij. Zonder internet, zonder account.</p>
+
+  <a class="btn" href="https://github.com/Willgo97/StatenBijbel/releases/latest/download/StatenBijbel.apk">
+    Download voor Android
+  </a>
+  <p class="meta">Altijd de nieuwste versie · Android 8.0 en hoger · ongeveer 12 MB</p>
+
+  <ul class="inhoud">
+    <li><b>31.171</b> <span>verzen, in de echte Statenvertaling-telling</span></li>
+    <li><b>59.385</b> <span>kanttekeningen, bij het woord waar ze bij horen</span></li>
+    <li><b>49.830</b> <span>verwijzingen, die twee kanten op werken</span></li>
+    <li><b>Kerkboek</b> <span>psalmberijming 1773, de Drie Formulieren van
+      Enigheid, de liturgische formulieren en de gebeden</span></li>
+  </ul>
+
+  <div class="note">
+    <p><strong>Blijft hij laden?</strong> Open deze pagina in Chrome in plaats van
+      in het schermpje van je camera-app: tik op de drie puntjes en kies
+      <em>Openen in browser</em>.</p>
+    <p>Android waarschuwt voor een <em>onbekende bron</em>. Dat klopt: de app is
+      ondertekend met een persoonlijke sleutel en gaat niet via de Play Store.
+      Sta installeren toe voor je browser en open het gedownloade bestand.</p>
+    <p>De app vraagt <strong>geen enkele toestemming</strong> — ook geen internet.
+      De eerste start duurt een paar seconden; dan wordt de tekst uitgepakt.</p>
+    <p>Broncode en uitgaven:
+      <a href="https://github.com/Willgo97/StatenBijbel">github.com/Willgo97/StatenBijbel</a></p>
+  </div>
+</div>
+</body>
+</html>
