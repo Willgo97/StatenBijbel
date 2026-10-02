@@ -6,6 +6,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,16 +151,6 @@ fun Lezer(st: AppState) {
                 HoofdstukPagina(st, b, c, actief = page == pager.currentPage)
             }
         }
-        AnimatedVisibility(
-            visible = st.gekozenVers > 0,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
-        ) {
-            VersBalk(st)
-        }
     }
 
     st.verwijzingenVoor?.let { (b, c, v) ->
@@ -234,19 +227,30 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
     val stijl = leesStijl()
     val opmaak = leesOpmaak()
     val lijst = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    // Kanttekeningen open- of dichtklappen zonder dat het aangetikte vers
+    // wegschuift: klapt er hierboven een ander blok dicht, dan schuift de
+    // lijst mee zodat het vers op dezelfde hoogte blijft staan.
+    fun wisselKant(vers: Int, n: Int) {
+        val i = verzen.indexOfFirst { it.v == vers } + 1 // +1 voor de kop
+        val voor = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
+        st.wisselKant(b, c, vers, n)
+        if (voor == null) return
+        scope.launch {
+            withFrameNanos { }
+            lijst.scrollToItem(i)
+            val na = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
+                ?: return@launch
+            lijst.scrollBy((na - voor).toFloat())
+        }
+    }
 
     LaunchedEffect(actief, st.springNaarVers, b, c) {
         if (actief && st.springNaarVers > 0) {
             val i = verzen.indexOfFirst { it.v == st.springNaarVers }
             if (i >= 0) lijst.scrollToItem(i + 1)
             st.springNaarVers = 0
-        }
-    }
-    // Een opengeklapte kanttekening netjes in beeld brengen.
-    LaunchedEffect(st.kantV, st.kantN, b, c) {
-        if (actief && st.kantV > 0 && st.kantB == b && st.kantC == c) {
-            val i = verzen.indexOfFirst { it.v == st.kantV }
-            if (i >= 0) lijst.animateScrollToItem(i + 1)
         }
     }
 
@@ -278,15 +282,31 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                             .padding(bottom = 6.dp),
                     )
                 }
-                Text(
-                    regels.firstOrNull()?.trim()?.ifBlank { null } ?: "${boek.name} $c",
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 25.sp,
-                    color = k.inkt,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(
+                        regels.firstOrNull()?.trim()?.ifBlank { null } ?: "${boek.name} $c",
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 25.sp,
+                        color = k.inkt,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 40.dp),
+                    )
+                    // Een bladwijzer geldt voor het hele hoofdstuk.
+                    val isBlad = Prefs.isBladwijzer(b, c, 0)
+                    IconButton(
+                        { Prefs.wisselBladwijzer(b, c, 0) },
+                        Modifier.align(Alignment.CenterEnd),
+                    ) {
+                        Icon(
+                            if (isBlad) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            if (isBlad) "Bladwijzer weghalen" else "Bladwijzer zetten",
+                            tint = if (isBlad) k.accent else k.gedempt,
+                        )
+                    }
+                }
                 if (regels.size > 1 && regels[1].isNotBlank()) {
                     Text(
                         regels[1].trim(),
@@ -302,7 +322,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
             }
         }
         items(verzen, key = { it.vid }) { v ->
-            VersRegel(st, v, noten[v.v].orEmpty(), stijl, opmaak)
+            VersRegel(st, v, noten[v.v].orEmpty(), stijl, opmaak, ::wisselKant)
         }
         item(key = "voet") {
             Voetregel(st, b, c)
@@ -313,6 +333,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
 @Composable
 private fun VersRegel(
     st: AppState, v: Verse, noten: List<Note>, stijl: TextStyle, opmaak: Opmaak,
+    wisselKant: (vers: Int, n: Int) -> Unit,
 ) {
     val k = LocalLeeskleuren.current
     val tekst = remember(v.vid, Prefs.toonKantMarkers, k.donker) {
@@ -321,14 +342,7 @@ private fun VersRegel(
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val gekozen = st.gekozenVers == v.v
     val kantOpen = st.kantOpen(v.b, v.c, v.v)
-    val markeer = Prefs.markering(v.b, v.c, v.v)
-    val achtergrond = when {
-        markeer > 0 -> Color(MARKEERKLEUREN[(markeer - 1) % MARKEERKLEUREN.size]).copy(
-            alpha = if (k.donker) 0.26f else 0.5f
-        )
-        gekozen -> k.selectie
-        else -> Color.Transparent
-    }
+    val achtergrond = if (gekozen) k.selectie else Color.Transparent
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -354,21 +368,18 @@ private fun VersRegel(
                 modifier = Modifier
                     .weight(1f)
                     .pointerInput(tekst, noten.size) {
-                        detectTapGestures(
-                            onLongPress = {
-                                st.gekozenVers = if (gekozen) 0 else v.v
-                            },
-                            onTap = { pos ->
-                                val lr = layout
-                                val kt = lr?.let { annotatieOp(it, tekst, pos, TAG_KT) }
-                                when {
-                                    kt != null ->
-                                        st.wisselKant(v.b, v.c, v.v, kt.toIntOrNull() ?: 0)
-                                    noten.isNotEmpty() -> st.wisselKant(v.b, v.c, v.v, 0)
-                                    else -> st.gekozenVers = if (gekozen) 0 else v.v
-                                }
-                            },
-                        )
+                        detectTapGestures { pos ->
+                            st.gekozenVers = 0
+                            val lr = layout
+                            val kt = lr?.let { annotatieOp(it, tekst, pos, TAG_KT) }
+                            when {
+                                kt != null -> wisselKant(v.v, kt.toIntOrNull() ?: 0)
+                                noten.isNotEmpty() -> wisselKant(v.v, 0)
+                                // Zonder eigen kanttekeningen: laat zien wie hierheen verwijst.
+                                Bijbel.citations(v.b, v.c, v.v).isNotEmpty() ->
+                                    st.verwijzingenVoor = Triple(v.b, v.c, v.v)
+                            }
+                        }
                     },
                 onTextLayout = { layout = it },
             )

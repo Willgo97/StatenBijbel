@@ -38,8 +38,8 @@ val LocalLeeskleuren = staticCompositionLocalOf {
 }
 
 /**
- * Het accent kleurt de kanttekeningnummers, de verwijzingen en de
- * gekozen-versbalk.  Elke kleur heeft een variant voor lichte en voor donkere
+ * Het accent kleurt de kanttekeningnummers en de verwijzingen.
+ * Elke kleur heeft een variant voor lichte en voor donkere
  * achtergronden, zodat hij in alle vijf de thema's leesbaar blijft.
  */
 enum class Accent(val label: String, val licht: Color, val donker: Color) {
@@ -55,10 +55,6 @@ enum class Accent(val label: String, val licht: Color, val donker: Color) {
 
     fun kleur(donkerThema: Boolean): Color = if (donkerThema) donker else licht
 }
-
-val MARKEERKLEUREN = listOf(
-    0xFFFFF176, 0xFFA5D6A7, 0xFF90CAF9, 0xFFF48FB1, 0xFFFFCC80,
-)
 
 private val licht = Leeskleuren(
     papier = Color(0xFFFFFDFB),

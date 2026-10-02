@@ -491,8 +491,7 @@ fun BladwijzerScherm(st: AppState) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Chip("Bladwijzers", tab == 0) { tab = 0 }
-            Chip("Markeringen", tab == 1) { tab = 1 }
-            Chip("Geschiedenis", tab == 2) { tab = 2 }
+            Chip("Geschiedenis", tab == 1) { tab = 1 }
         }
         LazyColumn(
             Modifier
@@ -505,17 +504,6 @@ fun BladwijzerScherm(st: AppState) {
                     if (Prefs.bladwijzers.isEmpty()) item { Leeg("Nog geen bladwijzers.") }
                     items(Prefs.bladwijzers.toList()) { bw ->
                         VersRij(bw.b, bw.c, bw.v, k) { st.ga(bw.b, bw.c, bw.v) }
-                    }
-                }
-                1 -> {
-                    if (Prefs.markeringen.isEmpty()) item { Leeg("Nog niets gemarkeerd.") }
-                    items(Prefs.markeringen.keys.toList().sortedBy { sleutel ->
-                        val d = sleutel.split('.')
-                        d[0].toInt() * 1_000_000 + d[1].toInt() * 1000 + d[2].toInt()
-                    }) { sleutel ->
-                        val d = sleutel.split('.')
-                        val b = d[0].toInt(); val c = d[1].toInt(); val v = d[2].toInt()
-                        VersRij(b, c, v, k, Prefs.markeringen[sleutel] ?: 0) { st.ga(b, c, v) }
                     }
                 }
                 else -> {
@@ -562,33 +550,23 @@ private fun Leeg(tekst: String) {
 
 @Composable
 private fun VersRij(
-    b: Int, c: Int, v: Int, k: Leeskleuren, kleur: Int = 0, onClick: () -> Unit,
+    b: Int, c: Int, v: Int, k: Leeskleuren, onClick: () -> Unit,
 ) {
-    val vers = remember(b, c, v) { Bijbel.verse(b, c, v) }
+    // Bij een hoofdstukbladwijzer (v = 0) het eerste vers als voorproefje.
+    val vers = remember(b, c, v) { Bijbel.verse(b, c, maxOf(v, 1)) }
     Column(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (kleur > 0) {
-                Box(
-                    Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(Color(MARKEERKLEUREN[(kleur - 1) % MARKEERKLEUREN.size]))
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                Bijbel.ref(b, c, v),
-                fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                color = k.accent,
-            )
-        }
+        Text(
+            Bijbel.ref(b, c, v),
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            color = k.accent,
+        )
         Text(
             vers?.text ?: "",
             fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
@@ -659,7 +637,7 @@ fun InstellingenScherm(st: AppState) {
 }
 
 /** Bolletjes om de accentkleur te kiezen; het accent kleurt de
- *  kanttekeningnummers, de verwijzingen en de balk bij een gekozen vers. */
+ *  kanttekeningnummers en de verwijzingen. */
 @Composable
 private fun AccentKiezer() {
     val k = LocalLeeskleuren.current

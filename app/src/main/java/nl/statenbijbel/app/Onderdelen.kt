@@ -138,150 +138,6 @@ fun Chip(label: String, actief: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Actiebalk onder aan het scherm voor het gekozen vers. */
-@Composable
-fun VersBalk(st: AppState) {
-    val k = LocalLeeskleuren.current
-    val ctx = LocalContext.current
-    val klembord = LocalClipboardManager.current
-    val v = st.gekozenVers
-    val vers = remember(st.boek, st.hoofdstuk, v) {
-        if (v > 0) Bijbel.verse(st.boek, st.hoofdstuk, v) else null
-    }
-    val aantalNoten = remember(st.boek, st.hoofdstuk, v) {
-        if (v > 0) Bijbel.notes(st.boek, st.hoofdstuk)[v]?.size ?: 0 else 0
-    }
-    val aantalVerw = remember(st.boek, st.hoofdstuk, v) {
-        if (v > 0) Bijbel.citations(st.boek, st.hoofdstuk, v).size else 0
-    }
-    if (vers == null) return
-    val plek = Bijbel.ref(st.boek, st.hoofdstuk, v)
-    val isBlad = Prefs.isBladwijzer(st.boek, st.hoofdstuk, v)
-
-    Surface(
-        color = if (k.donker) Color(0xFF23262B) else Color(0xFFF4F0E8),
-        shadowElevation = 8.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clip(RoundedCornerShape(16.dp)),
-    ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    plek,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = k.inkt,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton({ st.gekozenVers = 0 }, Modifier.size(30.dp)) {
-                    Icon(Icons.Default.Close, "Sluiten", tint = k.gedempt,
-                        modifier = Modifier.size(18.dp))
-                }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MARKEERKLEUREN.forEachIndexed { i, kleur ->
-                    val gekozen = Prefs.markering(st.boek, st.hoofdstuk, v) == i + 1
-                    Box(
-                        Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(kleur))
-                            .border(
-                                if (gekozen) 2.dp else 0.dp,
-                                if (gekozen) k.inkt else Color.Transparent,
-                                CircleShape,
-                            )
-                            .clickable {
-                                Prefs.zetMarkering(
-                                    st.boek, st.hoofdstuk, v, if (gekozen) 0 else i + 1
-                                )
-                            },
-                    )
-                }
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, k.gedempt, CircleShape)
-                        .clickable { Prefs.zetMarkering(st.boek, st.hoofdstuk, v, 0) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.Close, "Geen", tint = k.gedempt,
-                        modifier = Modifier.size(15.dp))
-                }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                if (aantalNoten > 0) {
-                    ActieKnop(Icons.Default.MenuBook,
-                        "$aantalNoten ${Bijbel.book(st.boek).nootKort}") {
-                        st.wisselKant(st.boek, st.hoofdstuk, v, 0)
-                    }
-                }
-                if (aantalVerw > 0) {
-                    ActieKnop(Icons.Default.Link, "$aantalVerw verw.") {
-                        st.verwijzingenVoor = Triple(st.boek, st.hoofdstuk, v)
-                    }
-                }
-                ActieKnop(
-                    if (isBlad) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    if (isBlad) "Bewaard" else "Bewaar",
-                ) { Prefs.wisselBladwijzer(st.boek, st.hoofdstuk, v) }
-                ActieKnop(Icons.Default.ContentCopy, "Kopieer") {
-                    klembord.setText(AnnotatedString("${vers.text}\n— $plek (Statenvertaling)"))
-                }
-                ActieKnop(Icons.Default.Share, "Deel") {
-                    val i = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(
-                            Intent.EXTRA_TEXT,
-                            "${vers.text}\n— $plek (Statenvertaling)"
-                        )
-                    }
-                    ctx.startActivity(Intent.createChooser(i, "Deel vers"))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActieKnop(
-    icoon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-) {
-    val k = LocalLeeskleuren.current
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 7.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icoon, null, tint = k.accent, modifier = Modifier.size(17.dp))
-        Text(
-            label, fontSize = 12.sp, color = k.inkt, maxLines = 1,
-            modifier = Modifier.padding(start = 4.dp),
-        )
-    }
-}
-
 /**
  * De kanttekeningen van één vers, ingevouwen tussen de verzen zelf —
  * zoals in een uitgave met kanttekeningen in de kolom naast de tekst.
@@ -294,42 +150,17 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
     val opmaak = leesOpmaak()
     var kijk by remember(b, c, v) { mutableStateOf<Ref?>(null) }
     var kijkBij by remember(b, c, v) { mutableIntStateOf(0) }
+    val aantalVerw = remember(b, c, v) { Bijbel.citations(b, c, v).size }
 
-    Column(
+    Box(
         Modifier
             .fillMaxWidth()
             .padding(start = VERSGOOT, top = 4.dp, bottom = 10.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (k.donker) Color(0x14FFFFFF) else Color(0x0F8A6431))
-            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            .background(if (k.donker) Color(0x14FFFFFF) else Color(0x0F8A6431)),
     ) {
-        Row(
-            Modifier.padding(bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val boek = remember(b) { Bijbel.book(b) }
-            Text(
-                if (noten.size == 1)
-                    boek.nootNaam.replaceFirstChar { it.uppercase() } + " bij ${boek.eenheid} $v"
-                else "${noten.size} ${boek.nootNaamMv} bij ${boek.eenheid} $v",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = k.accent,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable { st.wisselKant(b, c, v, st.kantN) }
-                    .padding(3.dp),
-            ) {
-                Icon(
-                    Icons.Default.Close, "Sluiten", tint = k.gedempt,
-                    modifier = Modifier.size(15.dp),
-                )
-            }
-        }
-        noten.forEach { noot ->
+    Column(Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)) {
+        noten.forEachIndexed { i, noot ->
             val uitgelicht = st.kantN == noot.n
             val tekst = remember(noot.nid, k.donker) { nootTekst(noot, opmaak) }
             var layout by remember(noot.nid) { mutableStateOf<TextLayoutResult?>(null) }
@@ -350,6 +181,8 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
                     fontSize = (Prefs.tekstGrootte - 3).sp,
                     lineHeight = ((Prefs.tekstGrootte - 3) * 1.35f).sp,
                     color = k.inkt,
+                    // Ruimte voor het sluitkruisje rechtsboven.
+                    modifier = if (i == 0) Modifier.padding(end = 18.dp) else Modifier,
                 )
                 Text(
                     text = tekst,
@@ -385,6 +218,37 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
                     kijk?.let { r -> VersKijker(st, r) { kijk = null } }
                 }
             }
+        }
+        if (aantalVerw > 0) {
+            Row(
+                Modifier
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .clickable { st.verwijzingenVoor = Triple(b, c, v) }
+                    .padding(horizontal = 7.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Link, null, tint = k.accent, modifier = Modifier.size(16.dp))
+                Text(
+                    if (aantalVerw == 1) "  1 verwijzing hierheen"
+                    else "  $aantalVerw verwijzingen hierheen",
+                    fontSize = 13.sp, color = k.accent,
+                )
+            }
+        }
+    }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(5.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { st.wisselKant(b, c, v, st.kantN) }
+                .padding(3.dp),
+        ) {
+            Icon(
+                Icons.Default.Close, "Sluiten", tint = k.gedempt,
+                modifier = Modifier.size(15.dp),
+            )
         }
     }
 }

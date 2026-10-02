@@ -46,7 +46,6 @@ object Prefs {
     var vers by mutableIntStateOf(0)
 
     val bladwijzers = mutableStateListOf<Bladwijzer>()
-    val markeringen = mutableStateMapOf<String, Int>()
     val geschiedenis = mutableStateListOf<String>()
 
     fun load(ctx: Context) {
@@ -76,11 +75,8 @@ object Prefs {
                 )
             }
         }
-        markeringen.clear()
-        sp.getString("markeringen", "")!!.split(';').forEach { rij ->
-            val d = rij.split(',')
-            if (d.size == 2) markeringen[d[0]] = d[1].toIntOrNull() ?: 0
-        }
+        // Markeringen bestaan niet meer; wat er nog van over is, opruimen.
+        if (sp.contains("markeringen")) edit { remove("markeringen") }
         geschiedenis.clear()
         sp.getString("geschiedenis", "")!!.split(';').filter { it.isNotBlank() }
             .forEach { geschiedenis.add(it) }
@@ -131,16 +127,5 @@ object Prefs {
     private fun bewaarBladwijzers() = edit {
         putString("bladwijzers",
             bladwijzers.joinToString(";") { "${it.b},${it.c},${it.v},${it.tijd}" })
-    }
-
-    fun markering(b: Int, c: Int, v: Int): Int = markeringen["$b.$c.$v"] ?: 0
-
-    fun zetMarkering(b: Int, c: Int, v: Int, kleur: Int) {
-        val k = "$b.$c.$v"
-        if (kleur == 0) markeringen.remove(k) else markeringen[k] = kleur
-        edit {
-            putString("markeringen",
-                markeringen.entries.joinToString(";") { "${it.key},${it.value}" })
-        }
     }
 }
