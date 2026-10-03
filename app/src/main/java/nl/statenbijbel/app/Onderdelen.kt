@@ -160,7 +160,6 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
                         fontSize = (Prefs.tekstGrootte - 3).sp,
                         lineHeight = ((Prefs.tekstGrootte - 3) * 1.35f).sp,
                         color = k.inkt,
-                        // ruimte voor het sluitkruisje
                         modifier = if (i == 0) Modifier.padding(end = 18.dp) else Modifier,
                     )
                     Text(

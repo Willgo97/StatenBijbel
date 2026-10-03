@@ -203,7 +203,6 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
     val boek = Bijbel.book(b)
     val titels = remember(b) { Bijbel.hoofdstukTitels(b) }
 
-    // Gezangen, formulieren en gebeden als lijst met titels, de rest als raster.
     if (titels.isNotEmpty() && boek.chapters <= 20) {
         Column(Modifier.fillMaxSize()) {
             SchermKop(boek.name, { st.kiesBoek = 0 })
@@ -408,7 +407,6 @@ fun markeerTreffers(tekst: String, vraag: String, accent: Color): AnnotatedStrin
     val alle = Regex("[a-z0-9]+").findAll(normaliseer(vraag)).map { it.value }
         .filter { it.length > 1 }.toList()
     if (alle.isEmpty()) return AnnotatedString(tekst)
-    // Net als bij het zoeken telt alleen het laatste woord als prefix.
     val openEind = vraag.isNotEmpty() && !vraag.last().isWhitespace()
     val exact = if (openEind) alle.dropLast(1).toSet() else alle.toSet()
     val begin = if (openEind) alle.last() else null
@@ -537,7 +535,6 @@ private fun Leeg(tekst: String) {
 private fun VersRij(
     b: Int, c: Int, v: Int, k: Leeskleuren, onClick: () -> Unit,
 ) {
-    // Bij een hoofdstukbladwijzer (v = 0) vers 1 als voorproefje.
     val vers = remember(b, c, v) { Bijbel.verse(b, c, maxOf(v, 1)) }
     Column(
         Modifier

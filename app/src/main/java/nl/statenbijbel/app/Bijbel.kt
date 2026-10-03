@@ -333,7 +333,6 @@ object Bijbel {
         }
         val all = ids ?: return emptyList()
 
-        // Treffers waarin de woorden niet naast elkaar staan, komen achteraan.
         val phrase = terms.joinToString(" ")
         val wantPhrase = terms.size > 1
 
@@ -370,7 +369,6 @@ object Bijbel {
 
     private fun compact(s: String) = normaliseer(s).replace(NIETLETTER, "")
 
-    // "1kon 18" -> "1kon"
     fun boekDeel(invoer: String): String {
         val s = normaliseer(invoer).trim()
         val laatste = s.indexOfLast { it in 'a'..'z' }
@@ -390,7 +388,6 @@ object Bijbel {
             }
             if (viaAlt.isNotEmpty()) return viaAlt
         }
-        // "1kon18": meer getypt dan de afkorting.
         return books.filter { bk -> hoofd(bk).any { it.length >= 3 && q.startsWith(it) } }
     }
 

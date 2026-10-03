@@ -205,8 +205,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
     val lijst = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Klapt er boven het aangetikte vers een blok dicht, dan blijft het vers
-    // toch op dezelfde hoogte staan.
+    // Het aangetikte vers blijft op zijn plek als erboven een blok dichtklapt.
     fun wisselKant(vers: Int, n: Int) {
         val i = verzen.indexOfFirst { it.v == vers } + 1 // +1 voor de kop
         val voor = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
@@ -269,7 +268,6 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                             .fillMaxWidth()
                             .padding(horizontal = 40.dp),
                     )
-                    // Bladwijzers gelden per hoofdstuk (v = 0).
                     val isBlad = Prefs.isBladwijzer(b, c, 0)
                     IconButton(
                         { Prefs.wisselBladwijzer(b, c, 0) },
@@ -350,7 +348,6 @@ private fun VersRegel(
                             when {
                                 kt != null -> wisselKant(v.v, kt.toIntOrNull() ?: 0)
                                 noten.isNotEmpty() -> wisselKant(v.v, 0)
-                                // Geen eigen kanttekeningen: toon wie hierheen verwijst.
                                 Bijbel.citations(v.b, v.c, v.v).isNotEmpty() ->
                                     st.verwijzingenVoor = Triple(v.b, v.c, v.v)
                             }
