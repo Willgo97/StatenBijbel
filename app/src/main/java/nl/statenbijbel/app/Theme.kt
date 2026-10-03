@@ -17,146 +17,150 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-data class Leeskleuren(
-    val papier: Color,
-    val inkt: Color,
-    val gedempt: Color,
+data class ReadingColors(
+    val paper: Color,
+    val ink: Color,
+    val muted: Color,
     val accent: Color,
-    val versnummer: Color,
+    val verseNumber: Color,
     val marker: Color,
-    val selectie: Color,
-    val scheiding: Color,
-    val donker: Boolean,
+    val selection: Color,
+    val divider: Color,
+    val dark: Boolean,
 )
 
-val LocalLeeskleuren = staticCompositionLocalOf {
-    Leeskleuren(
+val LocalReadingColors = staticCompositionLocalOf {
+    ReadingColors(
         Color(0xFFFFFDFB), Color(0xFF1B1917), Color(0xFF6B655D), Color(0xFF8C6D3F),
         Color(0xFF9C9187), Color(0xFFB08636), Color(0x22C9A227), Color(0x14000000), false,
     )
 }
 
-enum class Accent(val label: String, val licht: Color, val donker: Color) {
-    GOUD("Goud", Color(0xFF8A6431), Color(0xFFD9B566)),
-    ROZEROOD("Rozerood", Color(0xFFB0355C), Color(0xFFEE8CA9)),
-    BORDEAUX("Bordeaux", Color(0xFF9A3430), Color(0xFFE58C7E)),
-    KOPER("Koper", Color(0xFF9E5522), Color(0xFFE8A46E)),
-    BLAUW("Blauw", Color(0xFF2C5B8C), Color(0xFF88B8E6)),
-    GROEN("Groen", Color(0xFF36684A), Color(0xFF89C8A2)),
-    PAARS("Paars", Color(0xFF67488B), Color(0xFFBB9EDE)),
-    INKT("Inkt", Color(0xFF4B463F), Color(0xFFB7B2AA)),
+enum class Accent(val key: String, val label: String, val light: Color, val dark: Color) {
+    GOLD("GOUD", "Goud", Color(0xFF8A6431), Color(0xFFD9B566)),
+    ROSE("ROZEROOD", "Rozerood", Color(0xFFB0355C), Color(0xFFEE8CA9)),
+    BORDEAUX("BORDEAUX", "Bordeaux", Color(0xFF9A3430), Color(0xFFE58C7E)),
+    COPPER("KOPER", "Koper", Color(0xFF9E5522), Color(0xFFE8A46E)),
+    BLUE("BLAUW", "Blauw", Color(0xFF2C5B8C), Color(0xFF88B8E6)),
+    GREEN("GROEN", "Groen", Color(0xFF36684A), Color(0xFF89C8A2)),
+    PURPLE("PAARS", "Paars", Color(0xFF67488B), Color(0xFFBB9EDE)),
+    INK("INKT", "Inkt", Color(0xFF4B463F), Color(0xFFB7B2AA)),
     ;
 
-    fun kleur(donkerThema: Boolean): Color = if (donkerThema) donker else licht
+    fun color(darkTheme: Boolean): Color = if (darkTheme) dark else light
+
+    companion object {
+        fun fromKey(key: String?): Accent? = entries.firstOrNull { it.key == key }
+    }
 }
 
-private val licht = Leeskleuren(
-    papier = Color(0xFFFFFDFB),
-    inkt = Color(0xFF1B1917),
-    gedempt = Color(0xFF6E6862),
+private val lightColors = ReadingColors(
+    paper = Color(0xFFFFFDFB),
+    ink = Color(0xFF1B1917),
+    muted = Color(0xFF6E6862),
     accent = Color(0xFF8A6431),
-    versnummer = Color(0xFFA79B8A),
+    verseNumber = Color(0xFFA79B8A),
     marker = Color(0xFFB07C2E),
-    selectie = Color(0x1F8A6431),
-    scheiding = Color(0x14000000),
-    donker = false,
+    selection = Color(0x1F8A6431),
+    divider = Color(0x14000000),
+    dark = false,
 )
 
-private val sepia = Leeskleuren(
-    papier = Color(0xFFF7EEDD),
-    inkt = Color(0xFF33291D),
-    gedempt = Color(0xFF6F6252),
+private val sepiaColors = ReadingColors(
+    paper = Color(0xFFF7EEDD),
+    ink = Color(0xFF33291D),
+    muted = Color(0xFF6F6252),
     accent = Color(0xFF8A5A22),
-    versnummer = Color(0xFFAE9E84),
+    verseNumber = Color(0xFFAE9E84),
     marker = Color(0xFF9C6A22),
-    selectie = Color(0x22A0701F),
-    scheiding = Color(0x18503C20),
-    donker = false,
+    selection = Color(0x22A0701F),
+    divider = Color(0x18503C20),
+    dark = false,
 )
 
-private val donker = Leeskleuren(
-    papier = Color(0xFF15171A),
-    inkt = Color(0xFFDEDAD3),
-    gedempt = Color(0xFF938D85),
+private val darkColors = ReadingColors(
+    paper = Color(0xFF15171A),
+    ink = Color(0xFFDEDAD3),
+    muted = Color(0xFF938D85),
     accent = Color(0xFFD9B566),
-    versnummer = Color(0xFF6E6862),
+    verseNumber = Color(0xFF6E6862),
     marker = Color(0xFFD2A950),
-    selectie = Color(0x33C9A227),
-    scheiding = Color(0x1AFFFFFF),
-    donker = true,
+    selection = Color(0x33C9A227),
+    divider = Color(0x1AFFFFFF),
+    dark = true,
 )
 
-private val nacht = Leeskleuren(
-    papier = Color(0xFF000000),
-    inkt = Color(0xFFB4AFA8),
-    gedempt = Color(0xFF7A756E),
+private val nightColors = ReadingColors(
+    paper = Color(0xFF000000),
+    ink = Color(0xFFB4AFA8),
+    muted = Color(0xFF7A756E),
     accent = Color(0xFFBE9A43),
-    versnummer = Color(0xFF5A554F),
+    verseNumber = Color(0xFF5A554F),
     marker = Color(0xFFB08F3E),
-    selectie = Color(0x33C9A227),
-    scheiding = Color(0x14FFFFFF),
-    donker = true,
+    selection = Color(0x33C9A227),
+    divider = Color(0x14FFFFFF),
+    dark = true,
 )
 
 @Composable
 fun StatenBijbelTheme(content: @Composable () -> Unit) {
-    val systeemDonker = isSystemInDarkTheme()
-    val basis = when (Prefs.thema) {
-        Thema.LICHT -> licht
-        Thema.SEPIA -> sepia
-        Thema.DONKER -> donker
-        Thema.NACHT -> nacht
-        Thema.SYSTEEM -> if (systeemDonker) donker else licht
+    val systemDark = isSystemInDarkTheme()
+    val base = when (Prefs.theme) {
+        Theme.LIGHT -> lightColors
+        Theme.SEPIA -> sepiaColors
+        Theme.DARK -> darkColors
+        Theme.NIGHT -> nightColors
+        Theme.SYSTEM -> if (systemDark) darkColors else lightColors
     }
-    val gekozen = Prefs.accent.kleur(basis.donker)
-    val k = basis.copy(
-        accent = gekozen,
-        marker = gekozen,
-        selectie = gekozen.copy(alpha = if (basis.donker) 0.26f else 0.15f),
+    val chosen = Prefs.accent.color(base.dark)
+    val k = base.copy(
+        accent = chosen,
+        marker = chosen,
+        selection = chosen.copy(alpha = if (base.dark) 0.26f else 0.15f),
     )
-    val schema = if (k.donker) darkColorScheme(
+    val scheme = if (k.dark) darkColorScheme(
         primary = k.accent,
         onPrimary = Color(0xFF20180A),
-        surface = k.papier,
-        onSurface = k.inkt,
-        background = k.papier,
-        onBackground = k.inkt,
+        surface = k.paper,
+        onSurface = k.ink,
+        background = k.paper,
+        onBackground = k.ink,
         surfaceVariant = Color(0xFF23262B),
-        onSurfaceVariant = k.gedempt,
-        outline = k.gedempt,
+        onSurfaceVariant = k.muted,
+        outline = k.muted,
         secondaryContainer = Color(0xFF2A2E34),
-        onSecondaryContainer = k.inkt,
+        onSecondaryContainer = k.ink,
     ) else lightColorScheme(
         primary = k.accent,
         onPrimary = Color.White,
-        surface = k.papier,
-        onSurface = k.inkt,
-        background = k.papier,
-        onBackground = k.inkt,
-        surfaceVariant = if (Prefs.thema == Thema.SEPIA) Color(0xFFEDE0C8) else Color(0xFFF1EDE6),
-        onSurfaceVariant = k.gedempt,
-        outline = k.gedempt,
-        secondaryContainer = if (Prefs.thema == Thema.SEPIA) Color(0xFFE8D8BA) else Color(0xFFEDE7DC),
-        onSecondaryContainer = k.inkt,
+        surface = k.paper,
+        onSurface = k.ink,
+        background = k.paper,
+        onBackground = k.ink,
+        surfaceVariant = if (Prefs.theme == Theme.SEPIA) Color(0xFFEDE0C8) else Color(0xFFF1EDE6),
+        onSurfaceVariant = k.muted,
+        outline = k.muted,
+        secondaryContainer = if (Prefs.theme == Theme.SEPIA) Color(0xFFE8D8BA) else Color(0xFFEDE7DC),
+        onSecondaryContainer = k.ink,
     )
-    // Statusbalk volgt het gekozen thema, niet dat van het systeem.
+    // The status bar follows the chosen theme, not the system one.
     val view = LocalView.current
     if (!view.isInEditMode) {
-        LaunchedEffect(k.donker) {
-            val venster = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
-            WindowCompat.getInsetsController(venster, view).apply {
-                isAppearanceLightStatusBars = !k.donker
-                isAppearanceLightNavigationBars = !k.donker
+        LaunchedEffect(k.dark) {
+            val window = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !k.dark
+                isAppearanceLightNavigationBars = !k.dark
             }
         }
     }
 
-    CompositionLocalProvider(LocalLeeskleuren provides k) {
-        MaterialTheme(colorScheme = schema, typography = typografie, content = content)
+    CompositionLocalProvider(LocalReadingColors provides k) {
+        MaterialTheme(colorScheme = scheme, typography = typography, content = content)
     }
 }
 
-private val typografie = Typography(
+private val typography = Typography(
     titleLarge = TextStyle(
         fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp
     ),
@@ -171,7 +175,7 @@ private val typografie = Typography(
 )
 
 @Composable
-fun leesOpmaak(): Opmaak {
-    val k = LocalLeeskleuren.current
-    return Opmaak(k.inkt, k.gedempt, k.accent, k.marker)
+fun renderColors(): RenderColors {
+    val k = LocalReadingColors.current
+    return RenderColors(k.ink, k.muted, k.accent, k.marker)
 }

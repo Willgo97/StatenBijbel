@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-OSIS-bestand van de Statenvertaling (github.com/Isidore-Guild/statenvertaling)
+OSIS file of the Statenvertaling (github.com/Isidore-Guild/statenvertaling)
 -> bijbel.db.
 
-De bron telt verzen als de KJV; de echte SV-nummers staan als [03:2]-markeringen
-in de tekst. Daarmee worden verzen en verwijzingen hernummerd.
+The source numbers verses like the KJV; the real SV numbers appear as [03:2] markers
+in the text. Verses and references are renumbered from those.
 
-Spantypes (type,start,eind,waarde):
-    i  cursief (door de vertalers toegevoegd woord)
-    d  Godsnaam HEERE (kleinkapitaal)
-    a  acrostichon-letter (Ps. 119, Klaagliederen, Spr. 31)
-    n  kanttekeningmarkering, waarde = nummer, start==eind (invoegpunt)
-    r  verwijzing (alleen in kanttekeningen), waarde = "BOEK.H.V" of ".V-eind"
+Span types (type,start,end,value):
+    i  italic (word added by the translators)
+    d  divine name HEERE (small caps)
+    a  acrostic letter (Ps. 119, Lamentations, Prov. 31)
+    n  note marker, value = number, start==end (insertion point)
+    r  reference (only in notes), value = "BOOK.C.V" or ".V-end"
 """
 import html
 import os
@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 NS = "{http://www.bibletechnologies.net/2003/OSIS/namespace}"
 
-# (osisID, canonieke code, Nederlandse naam, afkorting, testament, zoekaliassen)
+# (osisID, canonical code, Dutch name, abbreviation, testament, search aliases)
 BOOKS = [
     ("Gen", "GEN", "Genesis", "Gen", "OT", "1 mozes eerste boek van mozes"),
     ("Exod", "EXO", "Exodus", "Ex", "OT", "2 mozes tweede boek van mozes uittocht"),
@@ -103,7 +103,7 @@ BNUM = {b[0]: i + 1 for i, b in enumerate(BOOKS)}          # osisID  -> 1..66
 CODE_NUM = {b[1]: i + 1 for i, b in enumerate(BOOKS)}      # 'GEN'   -> 1
 ABBR = {i + 1: b[3] for i, b in enumerate(BOOKS)}
 
-# osisRef gebruikt een eigen afkortingsschema, afwijkend van osisID
+# osisRef uses its own abbreviation scheme, different from osisID
 REF_TO_NUM = {}
 for _code, _num in [
     ("Gen", 1), ("Exo", 2), ("Lev", 3), ("Num", 4), ("Deu", 5), ("Jos", 6),
@@ -151,7 +151,7 @@ class Builder:
 
 
 def walk(el, b):
-    """OSIS-element -> Builder.  Noten worden overgeslagen (apart verwerkt)."""
+    """OSIS element -> Builder.  Notes are skipped (handled separately)."""
     if el.text:
         b.add(el.text)
     for child in el:
@@ -186,7 +186,7 @@ def walk(el, b):
 
 
 def collapse(raw, spans):
-    """Witruimte samentrekken en trimmen; spanposities schuiven mee."""
+    """Collapse and trim whitespace; span positions shift along."""
     out = []
     idx = []
     prev_space = True
@@ -216,7 +216,7 @@ def collapse(raw, spans):
 
 
 def segments(full, ochap, overs):
-    """Splits een OSIS-vers in SV-verzen: [(sv_c, sv_v, lo, hi), ...]."""
+    """Split an OSIS verse into SV verses: [(sv_c, sv_v, lo, hi), ...]."""
     cuts = list(MARKER.finditer(full))
     if not cuts:
         return [(ochap, overs, 0, len(full))]
@@ -226,16 +226,16 @@ def segments(full, ochap, overs):
     for i, m in enumerate(cuts):
         hi = cuts[i + 1].start() if i + 1 < len(cuts) else len(full)
         mc, mv = int(m.group(1)), int(m.group(2))
-        # Meer dan één hoofdstuk afwijking is een zetfout (Ps. 84:7 staat als [086:7]).
+        # More than one chapter off is a typesetting error (Ps. 84:7 appears as [086:7]).
         if abs(mc - ochap) > 1:
-            stats["markering_gecorrigeerd"] += 1
+            stats["marker_corrected"] += 1
             mc = ochap
         segs.append((mc, mv, m.end(), hi))
     return segs
 
 
 def parse_osis_ref(raw):
-    """'Pro.8.22-Pro.8.23' -> (boeknr, hfd, vers, eindvers) in OSIS-telling."""
+    """'Pro.8.22-Pro.8.23' -> (book, chapter, verse, end verse) in OSIS numbering."""
     raw = raw.strip()
     first = re.split(r"[-;,]", raw)[0].strip()
     m = re.match(r"^([0-9A-Za-z]+)\.(\d+)(?:\.(\d+))?$", first)
@@ -243,7 +243,7 @@ def parse_osis_ref(raw):
         return None
     num = REF_TO_NUM.get(m.group(1))
     if not num:
-        stats["ref_onbekend:" + m.group(1)] += 1
+        stats["ref_unknown:" + m.group(1)] += 1
         return None
     end = None
     if "-" in raw:
@@ -253,126 +253,126 @@ def parse_osis_ref(raw):
     return (num, int(m.group(2)), int(m.group(3)) if m.group(3) else 0, end)
 
 
-NAAM = {i + 1: b[2] for i, b in enumerate(BOOKS)}
+NAME = {i + 1: b[2] for i, b in enumerate(BOOKS)}
 
 
-def verwijs_etiket(waarde):
-    """'19.90.2.0' -> 'Ps. 90:2'   ('19.90.0.0' = heel hoofdstuk -> 'Ps. 90')."""
-    d = waarde.split(".")
-    num, c, v, eind = int(d[0]), int(d[1]), int(d[2]), int(d[3])
-    afk = ABBR.get(num, "?")
-    punt = "" if afk.lower() == NAAM.get(num, "").lower() else "."
-    uit = "%s%s\u00a0%d" % (afk.replace(" ", "\u00a0"), punt, c)
+def ref_label(value):
+    """'19.90.2.0' -> 'Ps. 90:2'   ('19.90.0.0' = whole chapter -> 'Ps. 90')."""
+    d = value.split(".")
+    num, c, v, end = int(d[0]), int(d[1]), int(d[2]), int(d[3])
+    abbr = ABBR.get(num, "?")
+    dot = "" if abbr.lower() == NAME.get(num, "").lower() else "."
+    out = "%s%s\u00a0%d" % (abbr.replace(" ", "\u00a0"), dot, c)
     if v > 0:
-        uit += ":%d" % v
-        if eind > v:
-            uit += "-%d" % eind
-    return uit
+        out += ":%d" % v
+        if end > v:
+            out += "-%d" % end
+    return out
 
 
-def herschrijf_verwijzingen(text, spans):
-    """Vervangt 'Psa 90:2' door 'Ps. 90:2' en schuift alle spans mee."""
+def rewrite_refs(text, spans):
+    """Replaces 'Psa 90:2' with 'Ps. 90:2' and shifts all spans along."""
     rs = sorted([sp for sp in spans if sp[0] == "r"], key=lambda x: x[1])
     if not rs:
         return text, spans
-    stukken = []
-    grenzen = []          # (oud_begin, oud_eind, nieuw_begin, nieuw_eind, waarde)
-    laatste = 0
+    pieces = []
+    bounds = []          # (old_start, old_end, new_start, new_end, value)
+    last = 0
     for kind, s0, e0, val in rs:
-        if s0 < laatste or e0 > len(text):
+        if s0 < last or e0 > len(text):
             continue
-        stukken.append(text[laatste:s0])
-        nb = sum(len(x) for x in stukken)
-        etiket = verwijs_etiket(val)
-        stukken.append(etiket)
-        grenzen.append((s0, e0, nb, nb + len(etiket), val))
-        laatste = e0
-    if not grenzen:
+        pieces.append(text[last:s0])
+        nb = sum(len(x) for x in pieces)
+        label = ref_label(val)
+        pieces.append(label)
+        bounds.append((s0, e0, nb, nb + len(label), val))
+        last = e0
+    if not bounds:
         return text, spans
-    stukken.append(text[laatste:])
-    nieuwe_tekst = "".join(stukken)
+    pieces.append(text[last:])
+    new_text = "".join(pieces)
 
     def mp(p):
         d = 0
-        for ob, oe, nb, ne, _ in grenzen:
+        for ob, oe, nb, ne, _ in bounds:
             if p >= oe:
                 d += (ne - nb) - (oe - ob)
             elif p > ob:
                 return nb
         return p + d
 
-    uit = [(k, mp(a), mp(b), v) for k, a, b, v in spans if k != "r"]
-    uit += [("r", nb, ne, val) for _, _, nb, ne, val in grenzen]
-    return nieuwe_tekst, sorted(uit, key=lambda x: (x[1], x[2]))
+    out = [(k, mp(a), mp(b), v) for k, a, b, v in spans if k != "r"]
+    out += [("r", nb, ne, val) for _, _, nb, ne, val in bounds]
+    return new_text, sorted(out, key=lambda x: (x[1], x[2]))
 
 
-LEESTEKEN_SPATIE = re.compile(r"[ \u00a0]+(?=[.,;:!?])|(?<=[(\[])[ \u00a0]+|[ \u00a0]+(?=[)\]])")
+PUNCT_SPACE = re.compile(r"[ \u00a0]+(?=[.,;:!?])|(?<=[(\[])[ \u00a0]+|[ \u00a0]+(?=[)\]])")
 
 
-def net_leestekens(text, spans):
-    """'Zie Gen 1:2 .' -> 'Zie Gen 1:2.'; spans schuiven mee."""
-    weg = set()
-    for m in LEESTEKEN_SPATIE.finditer(text):
-        weg.update(range(m.start(), m.end()))
-    if not weg:
+def tidy_punctuation(text, spans):
+    """'Zie Gen 1:2 .' -> 'Zie Gen 1:2.'; spans shift along."""
+    drop = set()
+    for m in PUNCT_SPACE.finditer(text):
+        drop.update(range(m.start(), m.end()))
+    if not drop:
         return text, spans
-    uit = []
-    kaart = []
+    out = []
+    index_map = []
     for i, ch in enumerate(text):
-        kaart.append(len(uit))
-        if i not in weg:
-            uit.append(ch)
-    kaart.append(len(uit))
-    nieuw_text = "".join(uit)
+        index_map.append(len(out))
+        if i not in drop:
+            out.append(ch)
+    index_map.append(len(out))
+    new_text = "".join(out)
 
     def mp(p):
-        return kaart[min(max(p, 0), len(kaart) - 1)]
+        return index_map[min(max(p, 0), len(index_map) - 1)]
 
-    nieuw_spans = []
+    new_spans = []
     for k, a, b, val in spans:
         na, nb = mp(a), mp(b)
         if nb > na or k == "n":
-            nieuw_spans.append((k, na, nb, val))
-    return nieuw_text, nieuw_spans
+            new_spans.append((k, na, nb, val))
+    return new_text, new_spans
 
 
-# In Ps. 119 staan de letternamen als gewone tekst, elders als <title>.
-ACROSTICHON = re.compile(
+# In Ps. 119 the letter names are plain text, elsewhere they are <title>.
+ACROSTIC = re.compile(
     r"^(Aleph|Beth|Gimel|Daleth|He|Vau|Zain|Cheth|Teth|Jod|Caph|Lamed|Mem|Nun|"
     r"Samech|Ain|Pe|Tsade|Koph|Resch|Schin|Thau)\. ")
 
 
-def merk_acrostichon(bnum, c, text, spans):
+def mark_acrostic(bnum, c, text, spans):
     if bnum != 19 or c != 119:
         return spans
-    m = ACROSTICHON.match(text)
+    m = ACROSTIC.match(text)
     if not m or any(k == "a" for k, _, _, _ in spans):
         return spans
     return sorted(spans + [("a", 0, len(m.group(1)), "")], key=lambda x: (x[1], x[2]))
 
 
-WOORD_IN_TEKST = re.compile(r"[0-9A-Za-z\u00c0-\u024f]+")
+WORD_IN_TEXT = re.compile(r"[0-9A-Za-z\u00c0-\u024f]+")
 
 
-def los(s):
-    """Zonder accenten en dubbele letters: 'Hamaaloth' == 'Hammaaloth'."""
+def loose(s):
+    """Without accents and double letters: 'Hamaaloth' == 'Hammaaloth'."""
     s = norm(s)
     s = re.sub(r"[^a-z0-9]+", "", s)
     return re.sub(r"(.)\1+", r"\1", s)
 
 
-def zoek_los(text, ntext, needle, cursor):
-    doel = los(needle.split()[-1] if needle.split() else needle)
-    if len(doel) < 3:
+def find_loose(text, ntext, needle, cursor):
+    target = loose(needle.split()[-1] if needle.split() else needle)
+    if len(target) < 3:
         return -1, 0
-    beste = (-1, 0)
-    for m in WOORD_IN_TEKST.finditer(ntext):
-        if los(m.group(0)) == doel:
+    best = (-1, 0)
+    for m in WORD_IN_TEXT.finditer(ntext):
+        if loose(m.group(0)) == target:
             if m.start() >= cursor:
                 return m.start(), m.end() - m.start()
-            if beste[0] < 0:
-                beste = (m.start(), m.end() - m.start())
-    return beste
+            if best[0] < 0:
+                best = (m.start(), m.end() - m.start())
+    return best
 
 
 def spans_str(spans):
@@ -380,7 +380,7 @@ def spans_str(spans):
 
 
 def encode(ids):
-    """Oplopende id's -> delta-varint blob."""
+    """Ascending ids -> delta-varint blob."""
     out = bytearray()
     prev = 0
     for x in sorted(ids):
@@ -423,14 +423,14 @@ CREATE TABLE info(k TEXT PRIMARY KEY, v TEXT);
 
 
 def build(src, dst):
-    print("Inlezen %s ..." % src)
+    print("Reading %s ..." % src)
     root = ET.parse(src).getroot()
     text_el = root.find(NS + "osisText")
     divs = {d.get("osisID"): d for d in text_el.findall(NS + "div")
             if d.get("type") == "book"}
 
-    # ---- pas 1: OSIS-nummering -> SV-nummering (nodig voor de verwijzingen)
-    print("Pas 1: SV-versnummering afleiden ...")
+    # ---- pass 1: OSIS numbering -> SV numbering (needed for the references)
+    print("Pass 1: deriving SV verse numbering ...")
     osis2sv = {}
     for osis_id, code, name, abbr, test, alt in BOOKS:
         bnum = CODE_NUM[code]
@@ -441,8 +441,8 @@ def build(src, dst):
                 segs = segments(walk(verse, Builder()).text(), oc, ov)
                 osis2sv[(bnum, oc, ov)] = (segs[0][0], segs[0][1])
 
-    # ---- pas 2: tekst, kanttekeningen, verwijzingen, zoekindex
-    print("Pas 2: opbouwen ...")
+    # ---- pass 2: text, notes, references, search index
+    print("Pass 2: building ...")
     if os.path.exists(dst):
         os.remove(dst)
     db = sqlite3.connect(dst)
@@ -462,8 +462,8 @@ def build(src, dst):
         if t is not None and t.get("type") == "main":
             btitle = walk(t, Builder()).text().strip()
 
-        raw = {}       # (c,v) -> [tekstdelen]
-        rspans = {}    # (c,v) -> spans (posities t.o.v. samengevoegde ruwe tekst)
+        raw = {}       # (c,v) -> [text parts]
+        rspans = {}    # (c,v) -> spans (positions relative to the joined raw text)
         rnotes = defaultdict(list)
         kjvmap = {}
         order = []
@@ -496,7 +496,7 @@ def build(src, dst):
                         if lo <= ss and se <= hi:
                             rspans[key].append((kind, ss + shift, se + shift, val))
 
-                # kanttekeningen: aan het juiste SV-segment hangen via trefwoord
+                # notes: attach to the right SV segment via the catchword
                 seg_keys = []
                 for (sc, sv, lo, hi) in segs:
                     if (sc, sv) not in seg_keys:
@@ -518,7 +518,7 @@ def build(src, dst):
                     nb = walk(note, Builder())
                     rnotes[key].append((cw, nb))
 
-        # ---- wegschrijven, hoofdstuk voor hoofdstuk
+        # ---- write out, chapter by chapter
         bych = defaultdict(list)
         for (c, v) in order:
             bych[c].append(v)
@@ -528,7 +528,7 @@ def build(src, dst):
             for v in sorted(bych[c]):
                 key = (c, v)
                 text, spans = collapse("".join(raw[key]), rspans[key])
-                text, spans = net_leestekens(text, spans)
+                text, spans = tidy_punctuation(text, spans)
                 vid += 1
                 ntext = norm(text)
                 cursor = 0
@@ -550,9 +550,9 @@ def build(src, dst):
                                     if p >= 0:
                                         needle = parts[-1]
                             if p < 0:
-                                p, lengte = zoek_los(text, ntext, needle, cursor)
+                                p, length = find_loose(text, ntext, needle, cursor)
                                 if p >= 0:
-                                    needle = ntext[p:p + lengte]
+                                    needle = ntext[p:p + length]
                             if p >= 0:
                                 pos = p + len(needle)
                                 cursor = pos
@@ -578,7 +578,7 @@ def build(src, dst):
                         sv_t = osis2sv.get((tnum, tc, tv if tv else 1))
                         rc, rv = sv_t if sv_t else (tc, tv or 1)
                         if tv == 0:
-                            rv = 0          # verwijzing naar een heel hoofdstuk
+                            rv = 0          # reference to a whole chapter
                         rend = 0
                         if tend:
                             sv_e = osis2sv.get((tnum, tc, tend))
@@ -587,15 +587,15 @@ def build(src, dst):
                                 rend = 0
                         out_spans.append((kind, s, e, "%d.%d.%d.%d" % (tnum, rc, rv, rend)))
                         xref_rows.append((nid, bnum, c, v, tnum, rc, rv, rend))
-                    ntxt, out_spans = herschrijf_verwijzingen(ntxt, out_spans)
-                    ntxt, out_spans = net_leestekens(ntxt, out_spans)
+                    ntxt, out_spans = rewrite_refs(ntxt, out_spans)
+                    ntxt, out_spans = tidy_punctuation(ntxt, out_spans)
                     note_rows.append((nid, bnum, c, v, note_no, cw, ntxt,
                                       spans_str(out_spans)))
                     for term in set(WORD.findall(norm(ntxt))):
                         if len(term) > 1:
                             post_n[term].append(nid)
 
-                spans = merk_acrostichon(bnum, c, text, spans)
+                spans = mark_acrostic(bnum, c, text, spans)
                 spans = sorted(spans + markers, key=lambda x: (x[1], x[2]))
                 verse_rows.append((vid, bnum, c, v, text, spans_str(spans), kjvmap[key]))
                 for term in set(WORD.findall(ntext)):
@@ -607,20 +607,20 @@ def build(src, dst):
 
         book_rows.append((bnum, code, name, abbr, test, btitle,
                           len(bych), total_v, total_n, alt, "bijbel"))
-        print("  %-4s %-20s %3d hfd %5d vzn %5d kt" %
+        print("  %-4s %-20s %3d ch %5d vs %5d notes" %
               (code, name, len(bych), total_v, total_n))
 
-    # ---- kerkboek: psalmberijming, belijdenissen, formulieren en gebeden
-    extras = extras_in_db.laad(os.path.join(ROOT, "extras.json"))
+    # ---- church book: metrical psalms, confessions, forms and prayers
+    extras = extras_in_db.load(os.path.join(ROOT, "extras.json"))
     if extras:
-        print("\nKerkboek toevoegen ...")
-        slug_naar_boek = {extras_in_db.slug(b[2]): CODE_NUM[b[1]] for b in BOOKS}
-        vid, nid = extras_in_db.voeg_toe(
-            extras, slug_naar_boek, spans_str, norm, WORD,
+        print("\nAdding church book ...")
+        book_by_slug = {extras_in_db.slug(b[2]): CODE_NUM[b[1]] for b in BOOKS}
+        vid, nid = extras_in_db.add_rows(
+            extras, book_by_slug, spans_str, norm, WORD,
             book_rows, chap_rows, verse_rows, note_rows, xref_rows,
             post_v, post_n, vid, nid)
     else:
-        print("\n(extras.json ontbreekt — alleen de bijbeltekst)")
+        print("\n(extras.json missing — Bible text only)")
 
     db.executemany("INSERT INTO books VALUES(?,?,?,?,?,?,?,?,?,?,?)", book_rows)
     db.executemany("INSERT INTO chapters VALUES(?,?,?,?,?)", chap_rows)
@@ -628,7 +628,7 @@ def build(src, dst):
     db.executemany("INSERT INTO notes VALUES(?,?,?,?,?,?,?,?)", note_rows)
     db.executemany("INSERT INTO xref VALUES(?,?,?,?,?,?,?,?)", xref_rows)
 
-    print("Zoekindex bouwen ...")
+    print("Building search index ...")
     db.executemany("INSERT INTO widx_v VALUES(?,?,?)",
                    ((t, len(d), encode(d)) for t, d in post_v.items()))
     db.executemany("INSERT INTO widx_n VALUES(?,?,?)",
@@ -644,16 +644,16 @@ def build(src, dst):
     db.executescript("VACUUM;")
     db.close()
 
-    print("\nKlaar: %d verzen, %d kanttekeningen, %d verwijzingen"
+    print("\nDone: %d verses, %d notes, %d references"
           % (vid, nid, len(xref_rows)))
-    print("Trefwoord geplaatst: %d, aan verseinde: %d"
+    print("Catchword placed: %d, at verse end: %d"
           % (stats["cw_raak"], stats["cw_mis"]))
-    print("Woordindex: %d verstermen, %d kanttermen" % (len(post_v), len(post_n)))
-    print("OSIS-verzen die in tweeën gesplitst zijn: %d" % shifted)
-    odd = {k: v for k, v in stats.items() if k.startswith(("tag:", "ref_onbekend:"))}
+    print("Word index: %d verse terms, %d note terms" % (len(post_v), len(post_n)))
+    print("OSIS verses split in two: %d" % shifted)
+    odd = {k: v for k, v in stats.items() if k.startswith(("tag:", "ref_unknown:"))}
     if odd:
-        print("Bijzonderheden:", odd)
-    print("Bestandsgrootte: %.1f MB" % (os.path.getsize(dst) / 1e6))
+        print("Anomalies:", odd)
+    print("File size: %.1f MB" % (os.path.getsize(dst) / 1e6))
 
 
 if __name__ == "__main__":

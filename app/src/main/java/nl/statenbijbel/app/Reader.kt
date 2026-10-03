@@ -63,24 +63,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-val ZIJMARGE = 10.dp
-val VERSGOOT = 22.dp
+val SIDE_MARGIN = 10.dp
+val VERSE_GUTTER = 22.dp
 
 @Composable
-fun leesStijl(): TextStyle = TextStyle(
-    fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
-    fontSize = Prefs.tekstGrootte.sp,
-    lineHeight = (Prefs.tekstGrootte * Prefs.regelHoogte / 100f).sp,
-    color = LocalLeeskleuren.current.inkt,
+fun readingStyle(): TextStyle = TextStyle(
+    fontFamily = if (Prefs.serif) FontFamily.Serif else FontFamily.SansSerif,
+    fontSize = Prefs.textSize.sp,
+    lineHeight = (Prefs.textSize * Prefs.lineHeight / 100f).sp,
+    color = LocalReadingColors.current.ink,
 )
 
-private fun annotatieOp(
-    lr: TextLayoutResult, tekst: AnnotatedString, pos: Offset, tag: String,
+private fun annotationAt(
+    lr: TextLayoutResult, text: AnnotatedString, pos: Offset, tag: String,
 ): String? {
     val off = lr.getOffsetForPosition(pos)
     for (o in intArrayOf(off, off - 1)) {
-        if (o < 0 || o >= tekst.length) continue
-        val ann = tekst.getStringAnnotations(tag, o, o).firstOrNull() ?: continue
+        if (o < 0 || o >= text.length) continue
+        val ann = text.getStringAnnotations(tag, o, o).firstOrNull() ?: continue
         val box = lr.getBoundingBox(o)
         if (pos.x >= box.left - 10f && pos.x <= box.right + 10f &&
             pos.y >= box.top - 8f && pos.y <= box.bottom + 8f
@@ -90,55 +90,55 @@ private fun annotatieOp(
 }
 
 @Composable
-fun Lezer(st: AppState) {
+fun Reader(st: AppState) {
     val pager = rememberPagerState(
-        initialPage = Index.index(st.boek, st.hoofdstuk)
-    ) { Index.aantal }
-    var toonLeesbalk by remember { mutableStateOf(false) }
+        initialPage = Index.index(st.book, st.chapter)
+    ) { Index.count }
+    var showDisplayBar by remember { mutableStateOf(false) }
 
-    LaunchedEffect(st.boek, st.hoofdstuk) {
-        val doel = Index.index(st.boek, st.hoofdstuk)
-        if (pager.currentPage != doel) pager.scrollToPage(doel)
+    LaunchedEffect(st.book, st.chapter) {
+        val target = Index.index(st.book, st.chapter)
+        if (pager.currentPage != target) pager.scrollToPage(target)
     }
     LaunchedEffect(pager.settledPage) {
-        val b = Index.boekVan(pager.settledPage)
-        val c = Index.hoofdstukVan(pager.settledPage)
-        if (b != st.boek || c != st.hoofdstuk) {
-            st.boek = b; st.hoofdstuk = c; st.gekozenVers = 0
-            Prefs.onthoudPlek(b, c, 0)
-            Prefs.voegGeschiedenisToe(b, c)
+        val b = Index.bookAt(pager.settledPage)
+        val c = Index.chapterAt(pager.settledPage)
+        if (b != st.book || c != st.chapter) {
+            st.book = b; st.chapter = c; st.selectedVerse = 0
+            Prefs.savePosition(b, c, 0)
+            Prefs.addToHistory(b, c)
         }
     }
 
     Column(Modifier.fillMaxSize()) {
-        Bovenbalk(st, onLeesbalk = { toonLeesbalk = !toonLeesbalk })
-        AnimatedVisibility(toonLeesbalk) { Leesbalk() }
+        TopBar(st, onDisplayBar = { showDisplayBar = !showDisplayBar })
+        AnimatedVisibility(showDisplayBar) { DisplayBar() }
         HorizontalPager(
             state = pager,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize(),
-            beyondViewportPageCount = if (Prefs.veegNavigatie) 1 else 0,
-            userScrollEnabled = Prefs.veegNavigatie,
+            beyondViewportPageCount = if (Prefs.swipeNavigation) 1 else 0,
+            userScrollEnabled = Prefs.swipeNavigation,
             key = { it },
         ) { page ->
-            HoofdstukPagina(
-                st, Index.boekVan(page), Index.hoofdstukVan(page),
-                actief = page == pager.currentPage,
+            ChapterPage(
+                st, Index.bookAt(page), Index.chapterAt(page),
+                active = page == pager.currentPage,
             )
         }
     }
 
-    st.verwijzingenVoor?.let { (b, c, v) ->
-        VerwijzingenBlad(st, b, c, v) { st.verwijzingenVoor = null }
+    st.citationsFor?.let { (b, c, v) ->
+        CitationsSheet(st, b, c, v) { st.citationsFor = null }
     }
 }
 
 @Composable
-private fun Bovenbalk(st: AppState, onLeesbalk: () -> Unit) {
-    val k = LocalLeeskleuren.current
-    val boek = Bijbel.book(st.boek)
-    Surface(color = k.papier, tonalElevation = 0.dp) {
+private fun TopBar(st: AppState, onDisplayBar: () -> Unit) {
+    val k = LocalReadingColors.current
+    val book = Bible.book(st.book)
+    Surface(color = k.paper, tonalElevation = 0.dp) {
         Column(Modifier.statusBarsPadding()) {
             Row(
                 Modifier
@@ -150,106 +150,106 @@ private fun Bovenbalk(st: AppState, onLeesbalk: () -> Unit) {
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { st.scherm = Scherm.KIEZEN }
+                        .clickable { st.screen = Screen.BOOKS }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val opschrift = remember(st.boek, st.hoofdstuk) {
-                        Bijbel.hoofdstukTitel(st.boek, st.hoofdstuk)
+                    val heading = remember(st.book, st.chapter) {
+                        Bible.chapterTitle(st.book, st.chapter)
                             ?.lineSequence()?.firstOrNull()?.trim()
                     }
                     Text(
-                        opschrift ?: "${boek.name} ${st.hoofdstuk}",
+                        heading ?: "${book.name} ${st.chapter}",
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 19.sp,
-                        color = k.inkt,
+                        color = k.ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Icon(
                         Icons.Default.ExpandMore, null,
-                        tint = k.gedempt,
+                        tint = k.muted,
                         modifier = Modifier
                             .padding(start = 3.dp)
                             .size(19.dp),
                     )
                 }
-                IconButton(onLeesbalk) {
-                    Icon(Icons.Default.FormatSize, "Weergave", tint = k.gedempt)
+                IconButton(onDisplayBar) {
+                    Icon(Icons.Default.FormatSize, "Weergave", tint = k.muted)
                 }
-                IconButton({ st.scherm = Scherm.ZOEKEN }) {
-                    Icon(Icons.Default.Search, "Zoeken", tint = k.gedempt)
+                IconButton({ st.screen = Screen.SEARCH }) {
+                    Icon(Icons.Default.Search, "Zoeken", tint = k.muted)
                 }
-                IconButton({ st.scherm = Scherm.BLADWIJZERS }) {
-                    Icon(Icons.Default.Bookmark, "Bladwijzers", tint = k.gedempt)
+                IconButton({ st.screen = Screen.BOOKMARKS }) {
+                    Icon(Icons.Default.Bookmark, "Bladwijzers", tint = k.muted)
                 }
-                IconButton({ st.scherm = Scherm.INSTELLINGEN }) {
-                    Icon(Icons.Default.Settings, "Instellingen", tint = k.gedempt)
+                IconButton({ st.screen = Screen.SETTINGS }) {
+                    Icon(Icons.Default.Settings, "Instellingen", tint = k.muted)
                 }
             }
-            HorizontalDivider(color = k.scheiding)
+            HorizontalDivider(color = k.divider)
         }
     }
 }
 
 @Composable
-private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
-    val k = LocalLeeskleuren.current
-    val verzen = remember(b, c) { Bijbel.verses(b, c) }
-    val noten = remember(b, c) { Bijbel.notes(b, c) }
-    val boek = remember(b) { Bijbel.book(b) }
-    val stijl = leesStijl()
-    val opmaak = leesOpmaak()
-    val lijst = rememberLazyListState()
+private fun ChapterPage(st: AppState, b: Int, c: Int, active: Boolean) {
+    val k = LocalReadingColors.current
+    val verses = remember(b, c) { Bible.verses(b, c) }
+    val notes = remember(b, c) { Bible.notes(b, c) }
+    val book = remember(b) { Bible.book(b) }
+    val style = readingStyle()
+    val colors = renderColors()
+    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Het aangetikte vers blijft op zijn plek als erboven een blok dichtklapt.
-    fun wisselKant(vers: Int, n: Int) {
-        val i = verzen.indexOfFirst { it.v == vers } + 1 // +1 voor de kop
-        val voor = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
-        st.wisselKant(b, c, vers, n)
-        if (voor == null) return
+    // The tapped verse stays in place when a block above it collapses.
+    fun toggleNotes(verse: Int, n: Int) {
+        val i = verses.indexOfFirst { it.v == verse } + 1 // +1 for the header
+        val before = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
+        st.toggleNotes(b, c, verse, n)
+        if (before == null) return
         scope.launch {
             withFrameNanos { }
-            lijst.scrollToItem(i)
-            val na = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
+            listState.scrollToItem(i)
+            val after = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
                 ?: return@launch
-            lijst.scrollBy((na - voor).toFloat())
+            listState.scrollBy((after - before).toFloat())
         }
     }
 
-    LaunchedEffect(actief, st.springNaarVers, b, c) {
-        if (actief && st.springNaarVers > 0) {
-            val i = verzen.indexOfFirst { it.v == st.springNaarVers }
-            if (i >= 0) lijst.scrollToItem(i + 1)
-            st.springNaarVers = 0
+    LaunchedEffect(active, st.scrollToVerse, b, c) {
+        if (active && st.scrollToVerse > 0) {
+            val i = verses.indexOfFirst { it.v == st.scrollToVerse }
+            if (i >= 0) listState.scrollToItem(i + 1)
+            st.scrollToVerse = 0
         }
     }
 
     LazyColumn(
-        state = lijst,
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = ZIJMARGE, end = ZIJMARGE, top = 10.dp, bottom = 120.dp
+            start = SIDE_MARGIN, end = SIDE_MARGIN, top = 10.dp, bottom = 120.dp
         ),
     ) {
         item(key = "kop") {
-            val titel = remember(b, c) { Bijbel.hoofdstukTitel(b, c) }
-            val regels = titel?.split("\n").orEmpty()
+            val title = remember(b, c) { Bible.chapterTitle(b, c) }
+            val lines = title?.split("\n").orEmpty()
             Column(Modifier.padding(bottom = 14.dp)) {
-                val boven = when {
-                    !boek.isBijbel -> boek.name
-                    c == 1 && boek.title.isNotBlank() -> boek.title
+                val overline = when {
+                    !book.isBible -> book.name
+                    c == 1 && book.title.isNotBlank() -> book.title
                     else -> ""
                 }
-                if (boven.isNotBlank()) {
+                if (overline.isNotBlank()) {
                     Text(
-                        boven,
+                        overline,
                         fontFamily = FontFamily.Serif,
                         fontSize = 14.sp,
-                        color = k.gedempt,
+                        color = k.muted,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -258,34 +258,34 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                 }
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        regels.firstOrNull()?.trim()?.ifBlank { null } ?: "${boek.name} $c",
+                        lines.firstOrNull()?.trim()?.ifBlank { null } ?: "${book.name} $c",
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Bold,
                         fontSize = 25.sp,
-                        color = k.inkt,
+                        color = k.ink,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 40.dp),
                     )
-                    val isBlad = Prefs.isBladwijzer(b, c, 0)
+                    val bookmarked = Prefs.isBookmarked(b, c, 0)
                     IconButton(
-                        { Prefs.wisselBladwijzer(b, c, 0) },
+                        { Prefs.toggleBookmark(b, c, 0) },
                         Modifier.align(Alignment.CenterEnd),
                     ) {
                         Icon(
-                            if (isBlad) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            if (isBlad) "Bladwijzer weghalen" else "Bladwijzer zetten",
-                            tint = if (isBlad) k.accent else k.gedempt,
+                            if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            if (bookmarked) "Bladwijzer weghalen" else "Bladwijzer zetten",
+                            tint = if (bookmarked) k.accent else k.muted,
                         )
                     }
                 }
-                if (regels.size > 1 && regels[1].isNotBlank()) {
+                if (lines.size > 1 && lines[1].isNotBlank()) {
                     Text(
-                        regels[1].trim(),
+                        lines[1].trim(),
                         fontFamily = FontFamily.Serif,
                         fontSize = 14.sp,
-                        color = k.gedempt,
+                        color = k.muted,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -294,74 +294,74 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                 }
             }
         }
-        items(verzen, key = { it.vid }) { v ->
-            VersRegel(st, v, noten[v.v].orEmpty(), stijl, opmaak, ::wisselKant)
+        items(verses, key = { it.vid }) { v ->
+            VerseLine(st, v, notes[v.v].orEmpty(), style, colors, ::toggleNotes)
         }
         item(key = "voet") {
-            Voetregel(st, b, c)
+            ChapterFooter(st, b, c)
         }
     }
 }
 
 @Composable
-private fun VersRegel(
-    st: AppState, v: Verse, noten: List<Note>, stijl: TextStyle, opmaak: Opmaak,
-    wisselKant: (vers: Int, n: Int) -> Unit,
+private fun VerseLine(
+    st: AppState, v: Verse, notes: List<Note>, style: TextStyle, colors: RenderColors,
+    toggleNotes: (verse: Int, n: Int) -> Unit,
 ) {
-    val k = LocalLeeskleuren.current
-    val tekst = remember(v.vid, Prefs.toonKantMarkers, k.donker) {
-        versTekst(v, opmaak, Prefs.toonKantMarkers)
+    val k = LocalReadingColors.current
+    val text = remember(v.vid, Prefs.showNoteMarkers, k.dark) {
+        verseText(v, colors, Prefs.showNoteMarkers)
     }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val gekozen = st.gekozenVers == v.v
-    val kantOpen = st.kantOpen(v.b, v.c, v.v)
-    val achtergrond = if (gekozen) k.selectie else Color.Transparent
+    val selected = st.selectedVerse == v.v
+    val notesOpen = st.notesOpen(v.b, v.c, v.v)
+    val bgColor = if (selected) k.selection else Color.Transparent
 
     Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(6.dp))
-                .background(achtergrond)
-                .padding(vertical = if (Prefs.doorlopend) 1.dp else 4.dp),
+                .background(bgColor)
+                .padding(vertical = if (Prefs.compactVerses) 1.dp else 4.dp),
         ) {
             Text(
                 v.v.toString(),
                 modifier = Modifier
-                    .width(VERSGOOT)
+                    .width(VERSE_GUTTER)
                     .padding(top = 3.dp, end = 5.dp),
                 textAlign = TextAlign.End,
-                fontSize = (Prefs.tekstGrootte * 0.62f).sp,
-                color = if (kantOpen) k.accent else k.versnummer,
+                fontSize = (Prefs.textSize * 0.62f).sp,
+                color = if (notesOpen) k.accent else k.verseNumber,
                 fontFamily = FontFamily.SansSerif,
             )
             Text(
-                text = tekst,
-                style = stijl,
+                text = text,
+                style = style,
                 modifier = Modifier
                     .weight(1f)
-                    .pointerInput(tekst, noten.size) {
+                    .pointerInput(text, notes.size) {
                         detectTapGestures { pos ->
-                            st.gekozenVers = 0
+                            st.selectedVerse = 0
                             val lr = layout
-                            val kt = lr?.let { annotatieOp(it, tekst, pos, TAG_KT) }
+                            val tappedNote = lr?.let { annotationAt(it, text, pos, TAG_NOTE) }
                             when {
-                                kt != null -> wisselKant(v.v, kt.toIntOrNull() ?: 0)
-                                noten.isNotEmpty() -> wisselKant(v.v, 0)
-                                Bijbel.citations(v.b, v.c, v.v).isNotEmpty() ->
-                                    st.verwijzingenVoor = Triple(v.b, v.c, v.v)
+                                tappedNote != null -> toggleNotes(v.v, tappedNote.toIntOrNull() ?: 0)
+                                notes.isNotEmpty() -> toggleNotes(v.v, 0)
+                                Bible.citations(v.b, v.c, v.v).isNotEmpty() ->
+                                    st.citationsFor = Triple(v.b, v.c, v.v)
                             }
                         }
                     },
                 onTextLayout = { layout = it },
             )
         }
-        if (kantOpen) KanttekeningBlok(st, v.b, v.c, v.v)
+        if (notesOpen) NotesBlock(st, v.b, v.c, v.v)
     }
 }
 
 @Composable
-private fun Voetregel(st: AppState, b: Int, c: Int) {
+private fun ChapterFooter(st: AppState, b: Int, c: Int) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -372,16 +372,16 @@ private fun Voetregel(st: AppState, b: Int, c: Int) {
         if (Index.index(b, c) > 0) {
             TextButton({
                 val i = Index.index(b, c) - 1
-                st.ga(Index.boekVan(i), Index.hoofdstukVan(i))
+                st.goTo(Index.bookAt(i), Index.chapterAt(i))
             }) {
                 Icon(Icons.Default.ArrowBack, null, Modifier.size(17.dp))
                 Text("  vorige", fontSize = 14.sp)
             }
         } else Spacer(Modifier.width(1.dp))
-        if (Index.index(b, c) < Index.aantal - 1) {
+        if (Index.index(b, c) < Index.count - 1) {
             TextButton({
                 val i = Index.index(b, c) + 1
-                st.ga(Index.boekVan(i), Index.hoofdstukVan(i))
+                st.goTo(Index.bookAt(i), Index.chapterAt(i))
             }) {
                 Text("volgende  ", fontSize = 14.sp)
                 Icon(Icons.Default.ArrowForward, null, Modifier.size(17.dp))

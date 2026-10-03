@@ -20,20 +20,20 @@ android {
         resourceConfigurations += listOf("nl")
     }
 
-    // Zonder keystore.properties wordt de release onondertekend gebouwd.
-    val sleutelConfig = Properties().apply {
+    // Without keystore.properties the release is built unsigned.
+    val keystoreProps = Properties().apply {
         val f = file("keystore.properties")
         if (f.exists()) f.inputStream().use { load(it) }
     }
-    val sleutelBestand = sleutelConfig.getProperty("storeFile")?.let { file(it) }
+    val keystoreFile = keystoreProps.getProperty("storeFile")?.let { file(it) }
 
     signingConfigs {
-        if (sleutelBestand != null && sleutelBestand.exists()) {
-            create("eigen") {
-                storeFile = sleutelBestand
-                storePassword = sleutelConfig.getProperty("storePassword")
-                keyAlias = sleutelConfig.getProperty("keyAlias")
-                keyPassword = sleutelConfig.getProperty("keyPassword")
+        if (keystoreFile != null && keystoreFile.exists()) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
             }
         }
     }
@@ -43,7 +43,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.findByName("eigen")
+            signingConfig = signingConfigs.findByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"

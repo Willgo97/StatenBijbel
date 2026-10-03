@@ -8,117 +8,124 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-enum class Thema(val label: String) {
-    SYSTEEM("Systeem"), LICHT("Licht"), SEPIA("Sepia"), DONKER("Donker"), NACHT("Nacht")
+enum class Theme(val key: String, val label: String) {
+    SYSTEM("SYSTEEM", "Systeem"),
+    LIGHT("LICHT", "Licht"),
+    SEPIA("SEPIA", "Sepia"),
+    DARK("DONKER", "Donker"),
+    NIGHT("NACHT", "Nacht"),
+    ;
+
+    companion object {
+        fun fromKey(key: String?): Theme? = entries.firstOrNull { it.key == key }
+    }
 }
 
-class Bladwijzer(val b: Int, val c: Int, val v: Int, val tijd: Long) {
-    val sleutel get() = "$b.$c.$v"
+class Bookmark(val b: Int, val c: Int, val v: Int, val time: Long) {
+    val key get() = "$b.$c.$v"
 }
 
 object Prefs {
     private lateinit var sp: SharedPreferences
 
-    var thema by mutableStateOf(Thema.SYSTEEM)
+    var theme by mutableStateOf(Theme.SYSTEM)
         private set
-    var accent by mutableStateOf(Accent.GOUD)
+    var accent by mutableStateOf(Accent.GOLD)
         private set
-    var tekstGrootte by mutableIntStateOf(19)
+    var textSize by mutableIntStateOf(19)
         private set
-    var regelHoogte by mutableIntStateOf(150) // procent
-    var schreef by mutableStateOf(true)
+    var lineHeight by mutableIntStateOf(150) // percent
+    var serif by mutableStateOf(true)
         private set
-    var toonKantMarkers by mutableStateOf(true)
+    var showNoteMarkers by mutableStateOf(true)
         private set
-    var doorlopend by mutableStateOf(false)
+    var compactVerses by mutableStateOf(false)
         private set
-    var schermAan by mutableStateOf(false)
+    var keepScreenOn by mutableStateOf(false)
         private set
-    var veegNavigatie by mutableStateOf(false)
+    var swipeNavigation by mutableStateOf(false)
         private set
 
-    var boek by mutableIntStateOf(1)
-    var hoofdstuk by mutableIntStateOf(1)
-    var vers by mutableIntStateOf(0)
+    var book by mutableIntStateOf(1)
+    var chapter by mutableIntStateOf(1)
+    var verse by mutableIntStateOf(0)
 
-    val bladwijzers = mutableStateListOf<Bladwijzer>()
-    val geschiedenis = mutableStateListOf<String>()
+    val bookmarks = mutableStateListOf<Bookmark>()
+    val history = mutableStateListOf<String>()
 
     fun load(ctx: Context) {
         sp = ctx.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
-        thema = runCatching { Thema.valueOf(sp.getString("thema", "SYSTEEM")!!) }
-            .getOrDefault(Thema.SYSTEEM)
-        accent = runCatching { Accent.valueOf(sp.getString("accent", "GOUD")!!) }
-            .getOrDefault(Accent.GOUD)
-        tekstGrootte = sp.getInt("grootte", 19)
-        regelHoogte = sp.getInt("regel", 150)
-        schreef = sp.getBoolean("schreef", true)
-        toonKantMarkers = sp.getBoolean("markers", true)
-        doorlopend = sp.getBoolean("doorlopend", false)
-        schermAan = sp.getBoolean("schermaan", false)
-        veegNavigatie = sp.getBoolean("vegen", false)
-        boek = sp.getInt("boek", 1)
-        hoofdstuk = sp.getInt("hoofdstuk", 1)
-        vers = sp.getInt("vers", 0)
+        theme = Theme.fromKey(sp.getString("thema", Theme.SYSTEM.key)) ?: Theme.SYSTEM
+        accent = Accent.fromKey(sp.getString("accent", Accent.GOLD.key)) ?: Accent.GOLD
+        textSize = sp.getInt("grootte", 19)
+        lineHeight = sp.getInt("regel", 150)
+        serif = sp.getBoolean("schreef", true)
+        showNoteMarkers = sp.getBoolean("markers", true)
+        compactVerses = sp.getBoolean("doorlopend", false)
+        keepScreenOn = sp.getBoolean("schermaan", false)
+        swipeNavigation = sp.getBoolean("vegen", false)
+        book = sp.getInt("boek", 1)
+        chapter = sp.getInt("hoofdstuk", 1)
+        verse = sp.getInt("vers", 0)
 
-        bladwijzers.clear()
-        sp.getString("bladwijzers", "")!!.split(';').forEach { rij ->
-            val d = rij.split(',')
+        bookmarks.clear()
+        sp.getString("bladwijzers", "")!!.split(';').forEach { row ->
+            val d = row.split(',')
             if (d.size == 4) {
-                bladwijzers.add(
-                    Bladwijzer(d[0].toInt(), d[1].toInt(), d[2].toInt(), d[3].toLong())
+                bookmarks.add(
+                    Bookmark(d[0].toInt(), d[1].toInt(), d[2].toInt(), d[3].toLong())
                 )
             }
         }
         if (sp.contains("markeringen")) edit { remove("markeringen") }
-        geschiedenis.clear()
+        history.clear()
         sp.getString("geschiedenis", "")!!.split(';').filter { it.isNotBlank() }
-            .forEach { geschiedenis.add(it) }
+            .forEach { history.add(it) }
     }
 
     private fun edit(f: SharedPreferences.Editor.() -> Unit) {
         sp.edit().apply(f).apply()
     }
 
-    fun zetThema(t: Thema) { thema = t; edit { putString("thema", t.name) } }
-    fun zetAccent(a: Accent) { accent = a; edit { putString("accent", a.name) } }
-    fun zetGrootte(v: Int) {
-        tekstGrootte = v.coerceIn(13, 34); edit { putInt("grootte", tekstGrootte) }
+    fun saveTheme(t: Theme) { theme = t; edit { putString("thema", t.key) } }
+    fun saveAccent(a: Accent) { accent = a; edit { putString("accent", a.key) } }
+    fun saveTextSize(v: Int) {
+        textSize = v.coerceIn(13, 34); edit { putInt("grootte", textSize) }
     }
-    fun zetRegel(v: Int) {
-        regelHoogte = v.coerceIn(110, 220); edit { putInt("regel", regelHoogte) }
+    fun saveLineHeight(v: Int) {
+        lineHeight = v.coerceIn(110, 220); edit { putInt("regel", lineHeight) }
     }
-    fun zetSchreef(v: Boolean) { schreef = v; edit { putBoolean("schreef", v) } }
-    fun zetMarkers(v: Boolean) { toonKantMarkers = v; edit { putBoolean("markers", v) } }
-    fun zetDoorlopend(v: Boolean) { doorlopend = v; edit { putBoolean("doorlopend", v) } }
-    fun zetSchermAan(v: Boolean) { schermAan = v; edit { putBoolean("schermaan", v) } }
-    fun zetVegen(v: Boolean) { veegNavigatie = v; edit { putBoolean("vegen", v) } }
+    fun saveSerif(v: Boolean) { serif = v; edit { putBoolean("schreef", v) } }
+    fun saveNoteMarkers(v: Boolean) { showNoteMarkers = v; edit { putBoolean("markers", v) } }
+    fun saveCompactVerses(v: Boolean) { compactVerses = v; edit { putBoolean("doorlopend", v) } }
+    fun saveKeepScreenOn(v: Boolean) { keepScreenOn = v; edit { putBoolean("schermaan", v) } }
+    fun saveSwipeNavigation(v: Boolean) { swipeNavigation = v; edit { putBoolean("vegen", v) } }
 
-    fun onthoudPlek(b: Int, c: Int, v: Int) {
-        boek = b; hoofdstuk = c; vers = v
+    fun savePosition(b: Int, c: Int, v: Int) {
+        book = b; chapter = c; verse = v
         edit { putInt("boek", b); putInt("hoofdstuk", c); putInt("vers", v) }
     }
 
-    fun voegGeschiedenisToe(b: Int, c: Int) {
-        val sleutel = "$b.$c"
-        geschiedenis.remove(sleutel)
-        geschiedenis.add(0, sleutel)
-        while (geschiedenis.size > 40) geschiedenis.removeAt(geschiedenis.size - 1)
-        edit { putString("geschiedenis", geschiedenis.joinToString(";")) }
+    fun addToHistory(b: Int, c: Int) {
+        val key = "$b.$c"
+        history.remove(key)
+        history.add(0, key)
+        while (history.size > 40) history.removeAt(history.size - 1)
+        edit { putString("geschiedenis", history.joinToString(";")) }
     }
 
-    fun isBladwijzer(b: Int, c: Int, v: Int) =
-        bladwijzers.any { it.b == b && it.c == c && it.v == v }
+    fun isBookmarked(b: Int, c: Int, v: Int) =
+        bookmarks.any { it.b == b && it.c == c && it.v == v }
 
-    fun wisselBladwijzer(b: Int, c: Int, v: Int) {
-        val bestaand = bladwijzers.indexOfFirst { it.b == b && it.c == c && it.v == v }
-        if (bestaand >= 0) bladwijzers.removeAt(bestaand)
-        else bladwijzers.add(0, Bladwijzer(b, c, v, System.currentTimeMillis()))
-        bewaarBladwijzers()
+    fun toggleBookmark(b: Int, c: Int, v: Int) {
+        val existing = bookmarks.indexOfFirst { it.b == b && it.c == c && it.v == v }
+        if (existing >= 0) bookmarks.removeAt(existing)
+        else bookmarks.add(0, Bookmark(b, c, v, System.currentTimeMillis()))
+        saveBookmarks()
     }
 
-    private fun bewaarBladwijzers() = edit {
+    private fun saveBookmarks() = edit {
         putString("bladwijzers",
-            bladwijzers.joinToString(";") { "${it.b},${it.c},${it.v},${it.tijd}" })
+            bookmarks.joinToString(";") { "${it.b},${it.c},${it.v},${it.time}" })
     }
 }

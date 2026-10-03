@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Kerkboek (psalmberijming 1773, belijdenissen, formulieren, gebeden) van
-bijbel-statenvertaling.com -> extras.json. Pagina's worden in cache-extras/ bewaard.
+Church book (1773 metrical psalms, confessions, forms, prayers) from
+bijbel-statenvertaling.com -> extras.json. Pages are kept in cache-extras/.
 
-    python3 tools/haal_extras.py ophalen   # eenmalig, ~280 pagina's
-    python3 tools/haal_extras.py ontleden  # maakt extras.json
+    python3 tools/fetch_extras.py fetch   # once, ~280 pages
+    python3 tools/fetch_extras.py parse   # writes extras.json
 """
 import gzip
 import json
@@ -17,13 +17,13 @@ import urllib.error
 import urllib.request
 from html import unescape
 
-BASIS = "https://bijbel-statenvertaling.com"
+BASE_URL = "https://bijbel-statenvertaling.com"
 UA = ("Mozilla/5.0 (X11; Linux x86_64) StatenBijbel-offline/1.0 "
       "(persoonlijk gebruik; publiek-domeinteksten)")
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cache-extras")
-PAUZE = 0.6
+PAUSE = 0.6
 
-GEZANGEN = [
+HYMNS = [
     "de-tien-geboden-des-heeren",
     "de-eerste-berijming-van-de-twaalf-artikelen-des-geloofs",
     "de-tweede-berijming-van-de-twaalf-artikelen-des-geloofs",
@@ -39,7 +39,7 @@ GEZANGEN = [
     "een-eigen-geschrift-van-david",
 ]
 
-LEERREGELS = [
+CANONS = [
     "voorrede",
     "het-eerste-hoofdstuk-der-leer",
     "het-tweede-hoofdstuk-der-leer",
@@ -48,13 +48,13 @@ LEERREGELS = [
     "besluit",
 ]
 
-BELIJDENISSEN = [
+CREEDS = [
     "apostolische-geloofsbelijdenis",
     "geloofsbelijdenis-van-nicea",
     "geloofsbelijdenis-van-athanasius",
 ]
 
-FORMULIEREN = [
+FORMS = [
     "formulier-om-den-heiligen-doop-aan-de-kinderen-te-bedienen",
     "formulier-om-den-heiligen-doop-aan-de-volwassenen-te-bedienen",
     "formulier-om-het-heilig-avondmaal-te-houden",
@@ -65,7 +65,7 @@ FORMULIEREN = [
     "formulier-van-wederopneming",
 ]
 
-GEBEDEN = [
+PRAYERS = [
     "het-morgengebed",
     "het-avondgebed",
     "gebed-voor-het-eten",
@@ -83,105 +83,105 @@ GEBEDEN = [
 ]
 
 
-def paden():
-    """Alle op te halen pagina's: (groep, sleutel, pad)."""
-    uit = []
+def pages():
+    """All pages to fetch: (group, key, path)."""
+    out = []
     for n in range(1, 151):
-        uit.append(("psalm", str(n), f"/1773/psalm/{n}/"))
-    for i, s in enumerate(GEZANGEN, 1):
-        uit.append(("gezang", str(i), f"/1773/gezang/{s}/"))
+        out.append(("psalm", str(n), f"/1773/psalm/{n}/"))
+    for i, s in enumerate(HYMNS, 1):
+        out.append(("gezang", str(i), f"/1773/gezang/{s}/"))
     for n in range(1, 53):
-        uit.append(("catechismus", str(n), f"/catechismus/zondag/{n}/"))
+        out.append(("catechismus", str(n), f"/catechismus/zondag/{n}/"))
     for n in range(1, 38):
-        uit.append(("ngb", str(n), f"/nederlandse-geloofsbelijdenis/artikel/{n}/"))
-    for i, s in enumerate(LEERREGELS, 1):
-        uit.append(("leerregels", str(i), f"/dordtse-leerregels/{s}/"))
-    for i, s in enumerate(BELIJDENISSEN, 1):
-        uit.append(("belijdenis", str(i), f"/belijdenis/{s}/"))
-    for i, s in enumerate(FORMULIEREN, 1):
-        uit.append(("formulier", str(i), f"/liturgische-formulieren/{s}/"))
-    for i, s in enumerate(GEBEDEN, 1):
-        uit.append(("gebed", str(i), f"/christelijke-gebeden/{s}/"))
-    return uit
+        out.append(("ngb", str(n), f"/nederlandse-geloofsbelijdenis/artikel/{n}/"))
+    for i, s in enumerate(CANONS, 1):
+        out.append(("leerregels", str(i), f"/dordtse-leerregels/{s}/"))
+    for i, s in enumerate(CREEDS, 1):
+        out.append(("belijdenis", str(i), f"/belijdenis/{s}/"))
+    for i, s in enumerate(FORMS, 1):
+        out.append(("formulier", str(i), f"/liturgische-formulieren/{s}/"))
+    for i, s in enumerate(PRAYERS, 1):
+        out.append(("gebed", str(i), f"/christelijke-gebeden/{s}/"))
+    return out
 
 
-def bestand(groep, sleutel):
-    return os.path.join(CACHE, f"{groep}-{sleutel}.html.gz")
+def cache_file(group, key):
+    return os.path.join(CACHE, f"{group}-{key}.html.gz")
 
 
-def ophalen():
+def fetch():
     os.makedirs(CACHE, exist_ok=True)
-    lijst = paden()
-    nieuw = 0
-    for i, (groep, sleutel, pad) in enumerate(lijst, 1):
-        doel = bestand(groep, sleutel)
-        if os.path.exists(doel) and os.path.getsize(doel) > 5000:
+    todo = pages()
+    new = 0
+    for i, (group, key, path) in enumerate(todo, 1):
+        dest = cache_file(group, key)
+        if os.path.exists(dest) and os.path.getsize(dest) > 5000:
             continue
         req = urllib.request.Request(
-            BASIS + pad,
+            BASE_URL + path,
             headers={"User-Agent": UA, "Accept-Encoding": "gzip",
                      "Accept-Language": "nl"},
         )
-        for poging in range(3):
+        for attempt in range(3):
             try:
                 with urllib.request.urlopen(req, timeout=40) as r:
-                    rauw = r.read()
+                    raw = r.read()
                     if r.headers.get("Content-Encoding") == "gzip":
-                        rauw = gzip.decompress(rauw)
+                        raw = gzip.decompress(raw)
                 break
             except (urllib.error.URLError, OSError) as e:
-                if poging == 2:
-                    print(f"  ! mislukt {pad}: {e}")
-                    rauw = None
+                if attempt == 2:
+                    print(f"  ! failed {path}: {e}")
+                    raw = None
                 else:
-                    time.sleep(2 * (poging + 1))
-        if not rauw:
+                    time.sleep(2 * (attempt + 1))
+        if not raw:
             continue
-        with gzip.open(doel, "wb") as f:
-            f.write(rauw)
-        nieuw += 1
-        if nieuw % 25 == 0:
-            print(f"  {i}/{len(lijst)} ({groep})")
-        time.sleep(PAUZE)
-    print(f"Klaar: {nieuw} nieuwe pagina's, {len(lijst)} totaal.")
+        with gzip.open(dest, "wb") as f:
+            f.write(raw)
+        new += 1
+        if new % 25 == 0:
+            print(f"  {i}/{len(todo)} ({group})")
+        time.sleep(PAUSE)
+    print(f"Done: {new} new pages, {len(todo)} total.")
 
 
-SCHOON = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
+SCRIPT_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
 
 
-def lees(groep, sleutel):
-    p = bestand(groep, sleutel)
+def read_cached(group, key):
+    p = cache_file(group, key)
     if not os.path.exists(p):
         return None
     with gzip.open(p, "rb") as f:
         return f.read().decode("utf-8", "replace")
 
 
-def inhoudsblok(s):
-    """Het deel van de pagina met de eigenlijke tekst."""
+def content_block(s):
+    """The part of the page holding the actual text."""
     m = re.search(r'<div class="[^"]*publication-content[^"]*"[^>]*>', s)
     if not m:
         return ""
     start = m.end()
-    eind = s.find('<div class="col', start)
-    staart = s.find("</section>", start)
-    if staart != -1 and (eind == -1 or staart < eind):
-        eind = staart
-    return s[start:eind if eind != -1 else len(s)]
+    end = s.find('<div class="col', start)
+    tail = s.find("</section>", start)
+    if tail != -1 and (end == -1 or tail < end):
+        end = tail
+    return s[start:end if end != -1 else len(s)]
 
 
-def titel_van(s):
+def title_of(s):
     m = re.search(r'<h1 class="[^"]*chapter-title[^"]*">(.*?)</h1>', s, re.S)
     if not m:
         m = re.search(r'<h1 class="publication-title">(.*?)</h1>', s, re.S)
     if not m:
         return ""
-    ruw = re.sub(r"</span>\s*<span", "</span>\n<span", m.group(1))
-    return plat(ruw)
+    raw = re.sub(r"</span>\s*<span", "</span>\n<span", m.group(1))
+    return flatten(raw)
 
 
-def plat(h):
-    """Alleen <br> is een regelovergang, de inspringing van de HTML niet."""
+def flatten(h):
+    """Only <br> is a line break, the HTML indentation is not."""
     h = re.sub(r"<br\s*/?>", "\x02", h)
     h = re.sub(r"<[^>]+>", "", h)
     h = unescape(h)
@@ -191,122 +191,122 @@ def plat(h):
     return h.strip()
 
 
-def verwijzingen_van(s):
-    """De bewijsteksten: letter -> [(label, boek-slug, hoofdstuk, vers)]."""
-    uit = {}
+def refs_of(s):
+    """The proof texts: letter -> [(label, book slug, chapter, verse)]."""
+    out = {}
     for m in re.finditer(
         r"<span class='reference-number'>([a-z]+)</span>(.*?)(?=<span class='reference-number'>|$)",
         s, re.S,
     ):
         letter = m.group(1)
-        plaatsen = []
+        places = []
         for a in re.finditer(
             r"<a href='/statenvertaling/([^/]+)/(\d+)/#(\d+)'[^>]*>(.*?)</a>", m.group(2), re.S
         ):
-            plaatsen.append({
+            places.append({
                 "boek": a.group(1), "h": int(a.group(2)),
-                "v": int(a.group(3)), "label": plat(a.group(4)),
+                "v": int(a.group(3)), "label": flatten(a.group(4)),
             })
-        if plaatsen:
-            uit.setdefault(letter, []).extend(plaatsen)
-    return uit
+        if places:
+            out.setdefault(letter, []).extend(places)
+    return out
 
 
-def blokken_van(inhoud):
-    """De genummerde tekstblokken (verzen, vragen, artikelen)."""
-    posities = [(m.start(), int(m.group(1)))
-                for m in re.finditer(r'<div class="[^"]*\bverse verse-(\d+)\b[^"]*"', inhoud)]
-    uit = []
-    for i, (pos, nr) in enumerate(posities):
-        eind = posities[i + 1][0] if i + 1 < len(posities) else len(inhoud)
-        stuk = inhoud[pos:eind]
-        stuk = re.sub(r'<span class="verse-number">.*?</span>', "", stuk, count=1, flags=re.S)
-        uit.append((nr, stuk))
-    return uit
+def blocks_of(content):
+    """The numbered text blocks (verses, questions, articles)."""
+    positions = [(m.start(), int(m.group(1)))
+                 for m in re.finditer(r'<div class="[^"]*\bverse verse-(\d+)\b[^"]*"', content)]
+    out = []
+    for i, (pos, nr) in enumerate(positions):
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(content)
+        piece = content[pos:end]
+        piece = re.sub(r'<span class="verse-number">.*?</span>', "", piece, count=1, flags=re.S)
+        out.append((nr, piece))
+    return out
 
 
-def ontleed_pagina(groep, sleutel):
-    s = lees(groep, sleutel)
+def parse_page(group, key):
+    s = read_cached(group, key)
     if not s:
         return None
-    s = SCHOON.sub("", s)
-    inhoud = inhoudsblok(s)
-    titel = titel_van(s)
-    verw = verwijzingen_van(s)
-    blokken = blokken_van(inhoud)
-    if not blokken:
-        # doorlopende tekst: alinea's uit <p>, of anders uit <div class="text">
-        alineas = [plat(m.group(1)) for m in
-                   re.finditer(r"<p[^>]*>(.*?)</p>", inhoud, re.S)]
-        if not any(len(a) > 1 for a in alineas):
-            ruw = "\n\n".join(
+    s = SCRIPT_STYLE.sub("", s)
+    content = content_block(s)
+    title = title_of(s)
+    refs = refs_of(s)
+    blocks = blocks_of(content)
+    if not blocks:
+        # running text: paragraphs from <p>, or else from <div class="text">
+        paragraphs = [flatten(m.group(1)) for m in
+                      re.finditer(r"<p[^>]*>(.*?)</p>", content, re.S)]
+        if not any(len(a) > 1 for a in paragraphs):
+            raw = "\n\n".join(
                 m.group(1) for m in
-                re.finditer(r'<div class="text[^"]*"[^>]*>(.*?)</div>', inhoud, re.S)
+                re.finditer(r'<div class="text[^"]*"[^>]*>(.*?)</div>', content, re.S)
             )
-            if not ruw.strip():
-                ruw = inhoud
-            alineas = [a.strip() for a in re.split(r"\n\s*\n", plat(ruw))]
-        alineas = [a for a in alineas if len(a) > 1]
-        blokken = [(i, a) for i, a in enumerate(alineas, 1)]
-        rijen = [{"n": n, "tekst": t} for n, t in blokken]
+            if not raw.strip():
+                raw = content
+            paragraphs = [a.strip() for a in re.split(r"\n\s*\n", flatten(raw))]
+        paragraphs = [a for a in paragraphs if len(a) > 1]
+        blocks = [(i, a) for i, a in enumerate(paragraphs, 1)]
+        rows = [{"n": n, "tekst": t} for n, t in blocks]
     else:
-        rijen = []
-        for n, ruw in blokken:
-            # De letters beginnen per vraag opnieuw bij a.
-            knip = ruw.find('<div class="verse-references"')
-            eigen_verw = verwijzingen_van(ruw[knip:]) if knip != -1 else {}
-            if knip != -1:
-                ruw = ruw[:knip]
-            # Merkteken, zodat de plaats van de letter het strippen overleeft.
-            gemerkt = re.sub(r'<span class="verwijzing">\s*([a-z]+)\s*</span>',
-                             lambda m: "\x01" + m.group(1) + "\x01", ruw)
-            tekst = plat(gemerkt)
-            # Eerst witruimte opschonen, anders verschuiven de markeringen.
-            tekst = re.sub(r"[ \t]+(\x01[a-z]+\x01)", r"\1", tekst)
-            tekst = re.sub(r"[ \t]+([,.;:!?])", r"\1", tekst)
-            tekst = re.sub(r"[ \t]{2,}", " ", tekst)
-            merken = []
+        rows = []
+        for n, raw in blocks:
+            # The letters restart at a for each question.
+            cut = raw.find('<div class="verse-references"')
+            own_refs = refs_of(raw[cut:]) if cut != -1 else {}
+            if cut != -1:
+                raw = raw[:cut]
+            # Sentinel, so the position of the letter survives the stripping.
+            marked = re.sub(r'<span class="verwijzing">\s*([a-z]+)\s*</span>',
+                            lambda m: "\x01" + m.group(1) + "\x01", raw)
+            text = flatten(marked)
+            # Clean up whitespace first, otherwise the marks shift.
+            text = re.sub(r"[ \t]+(\x01[a-z]+\x01)", r"\1", text)
+            text = re.sub(r"[ \t]+([,.;:!?])", r"\1", text)
+            text = re.sub(r"[ \t]{2,}", " ", text)
+            marks = []
             while True:
-                m = re.search(r"\x01([a-z]+)\x01", tekst)
+                m = re.search(r"\x01([a-z]+)\x01", text)
                 if not m:
                     break
-                merken.append({"p": m.start(), "letter": m.group(1)})
-                tekst = tekst[:m.start()] + tekst[m.end():]
-            rij = {"n": n, "tekst": tekst}
-            if merken:
-                rij["merken"] = merken
-            if eigen_verw:
-                rij["verwijzingen"] = eigen_verw
-            rijen.append(rij)
-    return {"titel": titel, "rijen": rijen, "verwijzingen": verw}
+                marks.append({"p": m.start(), "letter": m.group(1)})
+                text = text[:m.start()] + text[m.end():]
+            row = {"n": n, "tekst": text}
+            if marks:
+                row["merken"] = marks
+            if own_refs:
+                row["verwijzingen"] = own_refs
+            rows.append(row)
+    return {"titel": title, "rijen": rows, "verwijzingen": refs}
 
 
-def ontleden():
-    uit = {}
-    stuk = 0
-    for groep, sleutel, pad in paden():
-        p = ontleed_pagina(groep, sleutel)
+def parse_all():
+    out = {}
+    blocks_total = 0
+    for group, key, path in pages():
+        p = parse_page(group, key)
         if not p or not p["rijen"]:
-            print(f"  ! leeg: {groep}/{sleutel} ({pad})")
+            print(f"  ! empty: {group}/{key} ({path})")
             continue
-        uit.setdefault(groep, {})[sleutel] = p
-        stuk += len(p["rijen"])
-    doel = os.path.join(os.path.dirname(CACHE), "extras.json")
-    with open(doel, "w", encoding="utf-8") as f:
-        json.dump(uit, f, ensure_ascii=False)
-    print(f"\nOntleed: {sum(len(v) for v in uit.values())} pagina's, {stuk} blokken")
-    for g, v in uit.items():
-        blok = sum(len(p["rijen"]) for p in v.values())
-        verw = sum(len(p["verwijzingen"]) for p in v.values())
-        print(f"  {g:14s} {len(v):4d} pagina's  {blok:5d} blokken  {verw:5d} verwijsletters")
-    print(f"-> {doel}")
+        out.setdefault(group, {})[key] = p
+        blocks_total += len(p["rijen"])
+    dest = os.path.join(os.path.dirname(CACHE), "extras.json")
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False)
+    print(f"\nParsed: {sum(len(v) for v in out.values())} pages, {blocks_total} blocks")
+    for g, v in out.items():
+        blk = sum(len(p["rijen"]) for p in v.values())
+        refs = sum(len(p["verwijzingen"]) for p in v.values())
+        print(f"  {g:14s} {len(v):4d} pages  {blk:5d} blocks  {refs:5d} ref letters")
+    print(f"-> {dest}")
 
 
 if __name__ == "__main__":
-    wat = sys.argv[1] if len(sys.argv) > 1 else "ophalen"
-    if wat == "ophalen":
-        ophalen()
-    elif wat == "ontleden":
-        ontleden()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "fetch"
+    if cmd == "fetch":
+        fetch()
+    elif cmd == "parse":
+        parse_all()
     else:
         print(__doc__)

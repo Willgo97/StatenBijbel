@@ -1,41 +1,41 @@
 # StatenBijbel
 
-Android-app met de Statenvertaling (editie 1888), alle kanttekeningen en het
-kerkboek: psalmberijming van 1773, gezangen, Drie Formulieren van Enigheid,
-liturgische formulieren en gebeden. Volledig offline, zoeken incluis.
+Android app with the Statenvertaling (1888 edition), all marginal notes and the
+church book: the 1773 metrical psalms, hymns, the Three Forms of Unity,
+liturgical forms and prayers. Fully offline, search included.
 
 **Download:** <https://github.com/Willgo97/StatenBijbel/releases/latest/download/StatenBijbel.apk>
-(Android 8.0+). Hang bij elke release ook een kopie als `StatenBijbel.apk`
-aan, anders breekt deze vaste link.
+(Android 8.0+). Attach a copy named `StatenBijbel.apk` to every release as well,
+otherwise this fixed link breaks.
 
-## Bouwen
+## Building
 
-JDK 17 en Android SDK 36.
+JDK 17 and Android SDK 36.
 
 ```bash
 ./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
 ```
 
-Ondertekenen gaat via `app/keystore.properties` (zie
-`keystore.properties.voorbeeld`); zonder dat bestand komt er een onondertekende APK uit.
+Signing uses `app/keystore.properties` (see
+`keystore.properties.example`); without that file the APK comes out unsigned.
 
 ## Data
 
-`bijbel.db` wordt gebouwd door `tools/build_db.py` en meegeleverd in
+`bijbel.db` is built by `tools/build_db.py` and shipped in
 `app/src/main/assets/`:
 
 ```bash
-python3 tools/haal_extras.py ophalen && python3 tools/haal_extras.py ontleden
+python3 tools/fetch_extras.py fetch && python3 tools/fetch_extras.py parse
 python3 tools/build_db.py STV.xml
 cp bijbel.db app/src/main/assets/bijbel.db
 ```
 
-- Bijbeltekst en kanttekeningen: <https://github.com/Isidore-Guild/statenvertaling> (CC0).
-  Het script hernummert de verzen van KJV- naar SV-telling.
-- Kerkboek: bijbel-statenvertaling.com; de teksten zijn publiek domein.
+- Bible text and marginal notes: <https://github.com/Isidore-Guild/statenvertaling> (CC0).
+  The script renumbers the verses from KJV to SV numbering.
+- Church book: bijbel-statenvertaling.com; the texts are in the public domain.
 
-## Nog niet gedaan
+## Not done yet
 
-- Korte inhoud boven elk hoofdstuk
-- Apocriefe boeken (`STVA.xml` in de bron)
-- Echt doorlopende tekst
+- Short summary above each chapter
+- Apocryphal books (`STVA.xml` in the source)
+- Truly continuous text

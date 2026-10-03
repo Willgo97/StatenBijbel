@@ -71,8 +71,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
-private fun SchermKop(titel: String, onTerug: () -> Unit, extra: @Composable () -> Unit = {}) {
-    val k = LocalLeeskleuren.current
+private fun ScreenHeader(title: String, onBack: () -> Unit, extra: @Composable () -> Unit = {}) {
+    val k = LocalReadingColors.current
     Column(Modifier.statusBarsPadding()) {
         Row(
             Modifier
@@ -80,56 +80,56 @@ private fun SchermKop(titel: String, onTerug: () -> Unit, extra: @Composable () 
                 .padding(start = 4.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onTerug) {
-                Icon(Icons.Default.ArrowBack, "Terug", tint = k.gedempt)
+            IconButton(onBack) {
+                Icon(Icons.Default.ArrowBack, "Terug", tint = k.muted)
             }
             Text(
-                titel,
+                title,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 19.sp,
-                color = k.inkt,
+                color = k.ink,
                 modifier = Modifier.weight(1f),
             )
             extra()
         }
-        HorizontalDivider(color = k.scheiding)
+        HorizontalDivider(color = k.divider)
     }
 }
 
 @Composable
-fun KiesScherm(st: AppState) {
-    val k = LocalLeeskleuren.current
-    var vraag by remember { mutableStateOf("") }
+fun BooksScreen(st: AppState) {
+    val k = LocalReadingColors.current
+    var query by remember { mutableStateOf("") }
 
-    if (st.kiesBoek != 0) {
-        HoofdstukKiezer(st, st.kiesBoek)
+    if (st.pickedBook != 0) {
+        ChapterPicker(st, st.pickedBook)
         return
     }
 
-    val treffer = remember(vraag) { if (vraag.isBlank()) null else Bijbel.parseReference(vraag) }
-    val boeken = remember(vraag) {
-        val deel = Bijbel.boekDeel(vraag)
-        if (deel.isEmpty()) Bijbel.books
-        else Bijbel.boekKandidaten(deel).ifEmpty {
-            Bijbel.books.filter { it.zoekterm.contains(normaliseer(deel)) }
+    val match = remember(query) { if (query.isBlank()) null else Bible.parseReference(query) }
+    val books = remember(query) {
+        val part = Bible.bookPart(query)
+        if (part.isEmpty()) Bible.books
+        else Bible.bookCandidates(part).ifEmpty {
+            Bible.books.filter { it.searchText.contains(normalize(part)) }
         }
     }
 
     Column(Modifier.fillMaxSize()) {
-        SchermKop("Boeken", { st.scherm = Scherm.LEZEN })
+        ScreenHeader("Boeken", { st.screen = Screen.READER })
         OutlinedTextField(
-            value = vraag,
-            onValueChange = { vraag = it },
+            value = query,
+            onValueChange = { query = it },
             placeholder = { Text("Boek zoeken, of \"joh 3:16\"", fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = k.gedempt) },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = k.muted) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         )
-        if (treffer != null && Bijbel.boekDeel(vraag).length >= 2) {
-            val (b, c, v) = treffer
+        if (match != null && Bible.bookPart(query).length >= 2) {
+            val (b, c, v) = match
             Surface(
                 color = k.accent.copy(alpha = 0.12f),
                 shape = RoundedCornerShape(12.dp),
@@ -137,10 +137,10 @@ fun KiesScherm(st: AppState) {
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 2.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable { st.ga(b, c, v) },
+                    .clickable { st.goTo(b, c, v) },
             ) {
                 Text(
-                    "Ga naar ${Bijbel.ref(b, c, v)}",
+                    "Ga naar ${Bible.ref(b, c, v)}",
                     modifier = Modifier.padding(14.dp),
                     color = k.accent,
                     fontWeight = FontWeight.Medium,
@@ -157,37 +157,37 @@ fun KiesScherm(st: AppState) {
                 "OT" to "Oude Testament",
                 "NT" to "Nieuwe Testament",
                 "EX" to "Kerkboek",
-            ).forEach { (code, naam) ->
-                val deel = boeken.filter { it.testament == code }
-                if (deel.isNotEmpty()) {
+            ).forEach { (code, label) ->
+                val part = books.filter { it.testament == code }
+                if (part.isNotEmpty()) {
                     item(key = "kop$code") {
                         Text(
-                            naam,
+                            label,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = k.gedempt,
+                            color = k.muted,
                             modifier = Modifier.padding(start = 18.dp, top = 14.dp, bottom = 4.dp),
                         )
                     }
-                    items(deel, key = { it.b }) { boek ->
+                    items(part, key = { it.b }) { book ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { st.kiesBoek = boek.b }
+                                .clickable { st.pickedBook = book.b }
                                 .padding(horizontal = 18.dp, vertical = 11.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                boek.name,
+                                book.name,
                                 fontFamily = FontFamily.Serif,
                                 fontSize = 16.sp,
-                                color = k.inkt,
+                                color = k.ink,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                if (boek.isBijbel) "${boek.chapters} hfdst."
-                                else "${boek.chapters} ${if (boek.chapters == 1) "deel" else "delen"}",
-                                fontSize = 12.sp, color = k.gedempt,
+                                if (book.isBible) "${book.chapters} hfdst."
+                                else "${book.chapters} ${if (book.chapters == 1) "deel" else "delen"}",
+                                fontSize = 12.sp, color = k.muted,
                             )
                         }
                     }
@@ -198,42 +198,42 @@ fun KiesScherm(st: AppState) {
 }
 
 @Composable
-private fun HoofdstukKiezer(st: AppState, b: Int) {
-    val k = LocalLeeskleuren.current
-    val boek = Bijbel.book(b)
-    val titels = remember(b) { Bijbel.hoofdstukTitels(b) }
+private fun ChapterPicker(st: AppState, b: Int) {
+    val k = LocalReadingColors.current
+    val book = Bible.book(b)
+    val titles = remember(b) { Bible.chapterTitles(b) }
 
-    if (titels.isNotEmpty() && boek.chapters <= 20) {
+    if (titles.isNotEmpty() && book.chapters <= 20) {
         Column(Modifier.fillMaxSize()) {
-            SchermKop(boek.name, { st.kiesBoek = 0 })
+            ScreenHeader(book.name, { st.pickedBook = 0 })
             LazyColumn(
                 Modifier
                     .weight(1f)
                     .navigationBarsPadding(),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
-                items((1..boek.chapters).toList()) { c ->
-                    val t = titels[c].orEmpty().split("\n")
+                items((1..book.chapters).toList()) { c ->
+                    val t = titles[c].orEmpty().split("\n")
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { st.kiesBoek = 0; st.ga(b, c) }
+                            .clickable { st.pickedBook = 0; st.goTo(b, c) }
                             .padding(horizontal = 18.dp, vertical = 11.dp),
                     ) {
                         Text(
                             t.firstOrNull().orEmpty().ifBlank { "$c" },
                             fontFamily = FontFamily.Serif,
                             fontSize = 16.sp,
-                            color = k.inkt,
+                            color = k.ink,
                         )
                         if (t.size > 1 && t[1].isNotBlank()) {
                             Text(
-                                t[1], fontSize = 12.sp, color = k.gedempt,
+                                t[1], fontSize = 12.sp, color = k.muted,
                                 modifier = Modifier.padding(top = 1.dp),
                             )
                         }
                     }
-                    HorizontalDivider(color = k.scheiding)
+                    HorizontalDivider(color = k.divider)
                 }
             }
         }
@@ -241,7 +241,7 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        SchermKop(boek.name, { st.kiesBoek = 0 })
+        ScreenHeader(book.name, { st.pickedBook = 0 })
         LazyVerticalGrid(
             columns = GridCells.Adaptive(56.dp),
             modifier = Modifier
@@ -251,24 +251,24 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items((1..boek.chapters).toList()) { c ->
-                val huidig = st.boek == b && st.hoofdstuk == c
+            items((1..book.chapters).toList()) { c ->
+                val current = st.book == b && st.chapter == c
                 Surface(
-                    color = if (huidig) k.accent.copy(alpha = 0.18f)
-                    else if (k.donker) Color(0xFF20242A) else Color(0xFFF2EEE7),
+                    color = if (current) k.accent.copy(alpha = 0.18f)
+                    else if (k.dark) Color(0xFF20242A) else Color(0xFFF2EEE7),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .height(48.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { st.kiesBoek = 0; st.ga(b, c) },
+                        .clickable { st.pickedBook = 0; st.goTo(b, c) },
                 ) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             "$c",
                             fontFamily = FontFamily.Serif,
                             fontSize = 16.sp,
-                            color = if (huidig) k.accent else k.inkt,
-                            fontWeight = if (huidig) FontWeight.Bold else FontWeight.Normal,
+                            color = if (current) k.accent else k.ink,
+                            fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
                         )
                     }
                 }
@@ -278,44 +278,44 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
 }
 
 @Composable
-fun ZoekScherm(st: AppState) {
-    val k = LocalLeeskleuren.current
-    var vraag by remember { mutableStateOf("") }
-    var inKant by remember { mutableStateOf(false) }
-    var bereik by remember { mutableStateOf("") }
-    var resultaten by remember { mutableStateOf<List<Hit>>(emptyList()) }
-    var bezig by remember { mutableStateOf(false) }
-    var gezocht by remember { mutableStateOf("") }
+fun SearchScreen(st: AppState) {
+    val k = LocalReadingColors.current
+    var query by remember { mutableStateOf("") }
+    var inNotes by remember { mutableStateOf(false) }
+    var testament by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Hit>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    var searchedFor by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
 
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(vraag, inKant, bereik) {
-        if (vraag.trim().length < 2) { resultaten = emptyList(); gezocht = ""; return@LaunchedEffect }
-        bezig = true
+    LaunchedEffect(query, inNotes, testament) {
+        if (query.trim().length < 2) { results = emptyList(); searchedFor = ""; return@LaunchedEffect }
+        searching = true
         delay(180)
-        resultaten = withContext(Dispatchers.Default) {
-            Bijbel.search(vraag, inKant, testament = bereik)
+        results = withContext(Dispatchers.Default) {
+            Bible.search(query, inNotes, testament = testament)
         }
-        gezocht = vraag
-        bezig = false
+        searchedFor = query
+        searching = false
     }
 
     Column(Modifier.fillMaxSize()) {
-        SchermKop("Zoeken", { st.scherm = Scherm.LEZEN })
+        ScreenHeader("Zoeken", { st.screen = Screen.READER })
         OutlinedTextField(
-            value = vraag,
-            onValueChange = { vraag = it },
+            value = query,
+            onValueChange = { query = it },
             placeholder = {
                 Text(
-                    if (inKant) "Zoek in de kanttekeningen" else "Zoek in de bijbeltekst",
+                    if (inNotes) "Zoek in de kanttekeningen" else "Zoek in de bijbeltekst",
                     fontSize = 14.sp,
                 )
             },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = k.gedempt) },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = k.muted) },
             trailingIcon = {
-                if (vraag.isNotEmpty()) {
-                    IconButton({ vraag = "" }) {
-                        Icon(Icons.Default.Close, "Wissen", tint = k.gedempt)
+                if (query.isNotEmpty()) {
+                    IconButton({ query = "" }) {
+                        Icon(Icons.Default.Close, "Wissen", tint = k.muted)
                     }
                 }
             },
@@ -333,23 +333,23 @@ fun ZoekScherm(st: AppState) {
                 .padding(horizontal = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Chip("Bijbeltekst", !inKant) { inKant = false }
-            Chip("Kanttekeningen", inKant) { inKant = true }
+            Chip("Bijbeltekst", !inNotes) { inNotes = false }
+            Chip("Kanttekeningen", inNotes) { inNotes = true }
             Spacer(Modifier.width(8.dp))
-            Chip("Alles", bereik == "") { bereik = "" }
-            Chip("OT", bereik == "OT") { bereik = "OT" }
-            Chip("NT", bereik == "NT") { bereik = "NT" }
+            Chip("Alles", testament == "") { testament = "" }
+            Chip("OT", testament == "OT") { testament = "OT" }
+            Chip("NT", testament == "NT") { testament = "NT" }
         }
-        if (gezocht.isNotEmpty()) {
+        if (searchedFor.isNotEmpty()) {
             Text(
-                if (resultaten.isEmpty()) "Niets gevonden"
-                else "${resultaten.size}${if (resultaten.size >= 400) "+" else ""} resultaten",
+                if (results.isEmpty()) "Niets gevonden"
+                else "${results.size}${if (results.size >= 400) "+" else ""} resultaten",
                 fontSize = 12.sp,
-                color = k.gedempt,
+                color = k.muted,
                 modifier = Modifier.padding(start = 18.dp, top = 10.dp),
             )
         }
-        if (bezig && resultaten.isEmpty()) {
+        if (searching && results.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(strokeWidth = 2.dp, color = k.accent)
             }
@@ -360,20 +360,20 @@ fun ZoekScherm(st: AppState) {
                 .navigationBarsPadding(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
-            items(resultaten) { hit ->
+            items(results) { hit ->
                 Column(
                     Modifier
                         .fillMaxWidth()
                         .clickable {
                             if (hit.noteNo > 0)
-                                st.toonKanttekening(hit.b, hit.c, hit.v, hit.noteNo)
-                            else st.ga(hit.b, hit.c, hit.v)
+                                st.showNote(hit.b, hit.c, hit.v, hit.noteNo)
+                            else st.goTo(hit.b, hit.c, hit.v)
                         }
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            Bijbel.ref(hit.b, hit.c, hit.v),
+                            Bible.ref(hit.b, hit.c, hit.v),
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
@@ -383,90 +383,90 @@ fun ZoekScherm(st: AppState) {
                             Text(
                                 "  kantt. ${hit.noteNo}" +
                                     (if (hit.catchWord.isNotBlank()) " · ${hit.catchWord}" else ""),
-                                fontSize = 12.sp, color = k.gedempt, maxLines = 1,
+                                fontSize = 12.sp, color = k.muted, maxLines = 1,
                             )
                         }
                     }
                     Text(
-                        markeerTreffers(hit.text, gezocht, k.accent),
-                        fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
+                        highlightMatches(hit.text, searchedFor, k.accent),
+                        fontFamily = if (Prefs.serif) FontFamily.Serif else FontFamily.SansSerif,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
-                        color = k.inkt,
+                        color = k.ink,
                         maxLines = 4,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                HorizontalDivider(color = k.scheiding)
+                HorizontalDivider(color = k.divider)
             }
         }
     }
 }
 
-fun markeerTreffers(tekst: String, vraag: String, accent: Color): AnnotatedString {
-    val alle = Regex("[a-z0-9]+").findAll(normaliseer(vraag)).map { it.value }
+fun highlightMatches(text: String, query: String, accent: Color): AnnotatedString {
+    val terms = Regex("[a-z0-9]+").findAll(normalize(query)).map { it.value }
         .filter { it.length > 1 }.toList()
-    if (alle.isEmpty()) return AnnotatedString(tekst)
-    val openEind = vraag.isNotEmpty() && !vraag.last().isWhitespace()
-    val exact = if (openEind) alle.dropLast(1).toSet() else alle.toSet()
-    val begin = if (openEind) alle.last() else null
+    if (terms.isEmpty()) return AnnotatedString(text)
+    val openEnd = query.isNotEmpty() && !query.last().isWhitespace()
+    val exact = if (openEnd) terms.dropLast(1).toSet() else terms.toSet()
+    val prefix = if (openEnd) terms.last() else null
 
-    // Per teken normaliseren, zodat posities gelijk blijven aan die in tekst.
-    val genorm = CharArray(tekst.length) { normLetter(tekst[it]) }.concatToString()
-    val vlaggen = BooleanArray(tekst.length)
-    var eerste = -1
-    // Hele woorden: "en" mag niet oplichten in "geworden".
-    for (m in Regex("[a-z0-9]+").findAll(genorm)) {
+    // Normalize per character so positions stay aligned with text.
+    val normalized = CharArray(text.length) { normalizeChar(text[it]) }.concatToString()
+    val flags = BooleanArray(text.length)
+    var first = -1
+    // Whole words: "en" must not light up inside "geworden".
+    for (m in Regex("[a-z0-9]+").findAll(normalized)) {
         val w = m.value
-        if (w in exact || (begin != null && w.startsWith(begin))) {
-            if (eerste < 0) eerste = m.range.first
-            for (j in m.range) vlaggen[j] = true
+        if (w in exact || (prefix != null && w.startsWith(prefix))) {
+            if (first < 0) first = m.range.first
+            for (j in m.range) flags[j] = true
         }
     }
 
     var start = 0
-    var eind = tekst.length
-    if (eerste > 130) {
-        start = (eerste - 60).coerceAtLeast(0)
-        while (start > 0 && tekst[start] != ' ') start--
+    var end = text.length
+    if (first > 130) {
+        start = (first - 60).coerceAtLeast(0)
+        while (start > 0 && text[start] != ' ') start--
     }
-    if (eind - start > 320) {
-        eind = (start + 320).coerceAtMost(tekst.length)
-        while (eind < tekst.length && tekst[eind] != ' ') eind++
+    if (end - start > 320) {
+        end = (start + 320).coerceAtMost(text.length)
+        while (end < text.length && text[end] != ' ') end++
     }
     return buildAnnotatedString {
         if (start > 0) append("… ")
         var i = start
-        while (i < eind) {
-            val aan = vlaggen[i]
+        while (i < end) {
+            val marked = flags[i]
             var j = i
-            while (j < eind && vlaggen[j] == aan) j++
-            if (aan) {
+            while (j < end && flags[j] == marked) j++
+            if (marked) {
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = accent)) {
-                    append(tekst.substring(i, j))
+                    append(text.substring(i, j))
                 }
-            } else append(tekst.substring(i, j))
+            } else append(text.substring(i, j))
             i = j
         }
-        if (eind < tekst.length) append(" …")
+        if (end < text.length) append(" …")
     }
 }
 
-private fun normLetter(c: Char): Char {
+private fun normalizeChar(c: Char): Char {
     if (c.code < 128) return c.lowercaseChar()
-    val ontleed = java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD)
-    val basis = ontleed.firstOrNull {
+    val decomposed = java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD)
+    val base = decomposed.firstOrNull {
         Character.getType(it) != Character.NON_SPACING_MARK.toInt()
     } ?: c
-    return basis.lowercaseChar()
+    return base.lowercaseChar()
 }
 
 @Composable
-fun BladwijzerScherm(st: AppState) {
-    val k = LocalLeeskleuren.current
+fun BookmarksScreen(st: AppState) {
+    val k = LocalReadingColors.current
     var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
-        SchermKop("Bewaard", { st.scherm = Scherm.LEZEN })
+        ScreenHeader("Bewaard", { st.screen = Screen.READER })
         Row(
             Modifier
                 .fillMaxWidth()
@@ -484,33 +484,33 @@ fun BladwijzerScherm(st: AppState) {
         ) {
             when (tab) {
                 0 -> {
-                    if (Prefs.bladwijzers.isEmpty()) item { Leeg("Nog geen bladwijzers.") }
-                    items(Prefs.bladwijzers.toList()) { bw ->
-                        VersRij(bw.b, bw.c, bw.v, k) { st.ga(bw.b, bw.c, bw.v) }
+                    if (Prefs.bookmarks.isEmpty()) item { EmptyMessage("Nog geen bladwijzers.") }
+                    items(Prefs.bookmarks.toList()) { bm ->
+                        BookmarkRow(bm.b, bm.c, bm.v, k) { st.goTo(bm.b, bm.c, bm.v) }
                     }
                 }
                 else -> {
-                    if (Prefs.geschiedenis.isEmpty()) item { Leeg("Nog geen geschiedenis.") }
-                    items(Prefs.geschiedenis.toList()) { sleutel ->
-                        val d = sleutel.split('.')
+                    if (Prefs.history.isEmpty()) item { EmptyMessage("Nog geen geschiedenis.") }
+                    items(Prefs.history.toList()) { key ->
+                        val d = key.split('.')
                         val b = d[0].toInt(); val c = d[1].toInt()
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { st.ga(b, c) }
+                                .clickable { st.goTo(b, c) }
                                 .padding(horizontal = 18.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                Icons.Default.History, null, tint = k.gedempt,
+                                Icons.Default.History, null, tint = k.muted,
                                 modifier = Modifier.size(17.dp),
                             )
                             Text(
-                                "  ${Bijbel.book(b).name} $c",
-                                fontFamily = FontFamily.Serif, fontSize = 15.sp, color = k.inkt,
+                                "  ${Bible.book(b).name} $c",
+                                fontFamily = FontFamily.Serif, fontSize = 15.sp, color = k.ink,
                             )
                         }
-                        HorizontalDivider(color = k.scheiding)
+                        HorizontalDivider(color = k.divider)
                     }
                 }
             }
@@ -519,11 +519,11 @@ fun BladwijzerScherm(st: AppState) {
 }
 
 @Composable
-private fun Leeg(tekst: String) {
-    val k = LocalLeeskleuren.current
+private fun EmptyMessage(text: String) {
+    val k = LocalReadingColors.current
     Text(
-        tekst,
-        fontSize = 14.sp, color = k.gedempt,
+        text,
+        fontSize = 14.sp, color = k.muted,
         modifier = Modifier
             .fillMaxWidth()
             .padding(30.dp),
@@ -532,10 +532,10 @@ private fun Leeg(tekst: String) {
 }
 
 @Composable
-private fun VersRij(
-    b: Int, c: Int, v: Int, k: Leeskleuren, onClick: () -> Unit,
+private fun BookmarkRow(
+    b: Int, c: Int, v: Int, k: ReadingColors, onClick: () -> Unit,
 ) {
-    val vers = remember(b, c, v) { Bijbel.verse(b, c, maxOf(v, 1)) }
+    val verse = remember(b, c, v) { Bible.verse(b, c, maxOf(v, 1)) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -543,65 +543,65 @@ private fun VersRij(
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         Text(
-            Bijbel.ref(b, c, v),
+            Bible.ref(b, c, v),
             fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
             color = k.accent,
         )
         Text(
-            vers?.text ?: "",
-            fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
-            fontSize = 14.sp, lineHeight = 20.sp, color = k.inkt, maxLines = 3,
+            verse?.text ?: "",
+            fontFamily = if (Prefs.serif) FontFamily.Serif else FontFamily.SansSerif,
+            fontSize = 14.sp, lineHeight = 20.sp, color = k.ink, maxLines = 3,
             modifier = Modifier.padding(top = 2.dp),
         )
     }
-    HorizontalDivider(color = k.scheiding)
+    HorizontalDivider(color = k.divider)
 }
 
 @Composable
-fun InstellingenScherm(st: AppState) {
-    val k = LocalLeeskleuren.current
+fun SettingsScreen(st: AppState) {
+    val k = LocalReadingColors.current
     Column(
         Modifier
             .fillMaxSize()
             .navigationBarsPadding(),
     ) {
-        SchermKop("Instellingen", { st.scherm = Scherm.LEZEN })
+        ScreenHeader("Instellingen", { st.screen = Screen.READER })
         Column(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Kopje("Weergave")
-            Regel("Thema") {
+            SectionHeader("Weergave")
+            SettingRow("Thema") {
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Thema.entries.forEach { t ->
-                        Chip(t.label, Prefs.thema == t) { Prefs.zetThema(t) }
+                    Theme.entries.forEach { t ->
+                        Chip(t.label, Prefs.theme == t) { Prefs.saveTheme(t) }
                     }
                 }
             }
-            AccentKiezer()
-            Schuif("Tekstgrootte", Prefs.tekstGrootte, 13, 34) { Prefs.zetGrootte(it) }
-            Schuif("Regelafstand", Prefs.regelHoogte, 110, 220) { Prefs.zetRegel(it) }
-            Knop("Schreefletter (serif)", Prefs.schreef) { Prefs.zetSchreef(it) }
+            AccentPicker()
+            SliderRow("Tekstgrootte", Prefs.textSize, 13, 34) { Prefs.saveTextSize(it) }
+            SliderRow("Regelafstand", Prefs.lineHeight, 110, 220) { Prefs.saveLineHeight(it) }
+            SwitchRow("Schreefletter (serif)", Prefs.serif) { Prefs.saveSerif(it) }
 
-            Kopje("Kanttekeningen")
-            Knop("Toon nummers in de tekst", Prefs.toonKantMarkers) { Prefs.zetMarkers(it) }
-            Knop("Compacte versregels", Prefs.doorlopend) { Prefs.zetDoorlopend(it) }
+            SectionHeader("Kanttekeningen")
+            SwitchRow("Toon nummers in de tekst", Prefs.showNoteMarkers) { Prefs.saveNoteMarkers(it) }
+            SwitchRow("Compacte versregels", Prefs.compactVerses) { Prefs.saveCompactVerses(it) }
 
-            Kopje("Bladeren")
-            Knop("Vegen om van hoofdstuk te wisselen", Prefs.veegNavigatie) {
-                Prefs.zetVegen(it)
+            SectionHeader("Bladeren")
+            SwitchRow("Vegen om van hoofdstuk te wisselen", Prefs.swipeNavigation) {
+                Prefs.saveSwipeNavigation(it)
             }
 
-            Kopje("Overig")
-            Knop("Scherm aan laten tijdens lezen", Prefs.schermAan) { Prefs.zetSchermAan(it) }
+            SectionHeader("Overig")
+            SwitchRow("Scherm aan laten tijdens lezen", Prefs.keepScreenOn) { Prefs.saveKeepScreenOn(it) }
 
-            Kopje("Over")
+            SectionHeader("Over")
             Text(
                 "Statenvertaling met de kanttekeningen van de Statenvertalers " +
                     "(editie 1888). 31.171 verzen, 59.385 kanttekeningen en 48.466 " +
@@ -609,7 +609,7 @@ fun InstellingenScherm(st: AppState) {
                     "Teksteditie: github.com/Isidore-Guild/statenvertaling (CC0).",
                 fontSize = 13.sp,
                 lineHeight = 19.sp,
-                color = k.gedempt,
+                color = k.muted,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
             )
             Spacer(Modifier.height(30.dp))
@@ -618,12 +618,12 @@ fun InstellingenScherm(st: AppState) {
 }
 
 @Composable
-private fun AccentKiezer() {
-    val k = LocalLeeskleuren.current
+private fun AccentPicker() {
+    val k = LocalReadingColors.current
     Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Accentkleur", fontSize = 15.sp, color = k.inkt, modifier = Modifier.weight(1f))
-            Text(Prefs.accent.label, fontSize = 13.sp, color = k.gedempt)
+            Text("Accentkleur", fontSize = 15.sp, color = k.ink, modifier = Modifier.weight(1f))
+            Text(Prefs.accent.label, fontSize = 13.sp, color = k.muted)
         }
         Row(
             Modifier
@@ -632,24 +632,24 @@ private fun AccentKiezer() {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Accent.entries.forEach { a ->
-                val gekozen = Prefs.accent == a
+                val chosen = Prefs.accent == a
                 Box(
                     Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(a.kleur(k.donker))
+                        .background(a.color(k.dark))
                         .border(
-                            if (gekozen) 3.dp else 1.dp,
-                            if (gekozen) k.inkt else k.scheiding,
+                            if (chosen) 3.dp else 1.dp,
+                            if (chosen) k.ink else k.divider,
                             CircleShape,
                         )
-                        .clickable { Prefs.zetAccent(a) },
+                        .clickable { Prefs.saveAccent(a) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (gekozen) {
+                    if (chosen) {
                         Icon(
                             Icons.Default.Check, a.label,
-                            tint = k.papier,
+                            tint = k.paper,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -660,10 +660,10 @@ private fun AccentKiezer() {
 }
 
 @Composable
-private fun Kopje(tekst: String) {
-    val k = LocalLeeskleuren.current
+private fun SectionHeader(text: String) {
+    val k = LocalReadingColors.current
     Text(
-        tekst,
+        text,
         fontSize = 12.sp,
         fontWeight = FontWeight.Medium,
         color = k.accent,
@@ -672,40 +672,40 @@ private fun Kopje(tekst: String) {
 }
 
 @Composable
-private fun Regel(label: String, inhoud: @Composable () -> Unit) {
-    val k = LocalLeeskleuren.current
+private fun SettingRow(label: String, content: @Composable () -> Unit) {
+    val k = LocalReadingColors.current
     Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-        Text(label, fontSize = 15.sp, color = k.inkt, modifier = Modifier.padding(bottom = 6.dp))
-        inhoud()
+        Text(label, fontSize = 15.sp, color = k.ink, modifier = Modifier.padding(bottom = 6.dp))
+        content()
     }
 }
 
 @Composable
-private fun Knop(label: String, waarde: Boolean, onWissel: (Boolean) -> Unit) {
-    val k = LocalLeeskleuren.current
+private fun SwitchRow(label: String, value: Boolean, onToggle: (Boolean) -> Unit) {
+    val k = LocalReadingColors.current
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onWissel(!waarde) }
+            .clickable { onToggle(!value) }
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, fontSize = 15.sp, color = k.inkt, modifier = Modifier.weight(1f))
-        Switch(checked = waarde, onCheckedChange = onWissel)
+        Text(label, fontSize = 15.sp, color = k.ink, modifier = Modifier.weight(1f))
+        Switch(checked = value, onCheckedChange = onToggle)
     }
 }
 
 @Composable
-private fun Schuif(label: String, waarde: Int, min: Int, max: Int, onZet: (Int) -> Unit) {
-    val k = LocalLeeskleuren.current
+private fun SliderRow(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+    val k = LocalReadingColors.current
     Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
         Row {
-            Text(label, fontSize = 15.sp, color = k.inkt, modifier = Modifier.weight(1f))
-            Text("$waarde", fontSize = 13.sp, color = k.gedempt)
+            Text(label, fontSize = 15.sp, color = k.ink, modifier = Modifier.weight(1f))
+            Text("$value", fontSize = 13.sp, color = k.muted)
         }
         Slider(
-            value = waarde.toFloat(),
-            onValueChange = { onZet(it.toInt()) },
+            value = value.toFloat(),
+            onValueChange = { onChange(it.toInt()) },
             valueRange = min.toFloat()..max.toFloat(),
         )
     }

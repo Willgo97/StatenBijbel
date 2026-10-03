@@ -11,23 +11,23 @@ class Span(val kind: Char, val start: Int, val end: Int, val value: String)
 class Book(
     val b: Int, val code: String, val name: String, val abbr: String,
     val testament: String, val title: String, val chapters: Int,
-    val verses: Int, val notes: Int, val alt: String, val soort: String,
+    val verses: Int, val notes: Int, val alt: String, val category: String,
 ) {
-    val zoekterm: String = normaliseer("$name $abbr $alt $code")
+    val searchText: String = normalize("$name $abbr $alt $code")
 
-    val isBijbel: Boolean get() = soort == "bijbel"
+    val isBible: Boolean get() = category == "bijbel"
 
-    val eenheid: String
+    val unit: String
         get() = when {
-            soort == "bijbel" || soort == "psalm" -> "vers"
+            category == "bijbel" || category == "psalm" -> "vers"
             code == "HCA" -> "vraag"
             code == "DLR" -> "artikel"
             else -> "gedeelte"
         }
 
-    val nootNaam: String get() = if (isBijbel) "kanttekening" else "bewijsplaats"
-    val nootNaamMv: String get() = if (isBijbel) "kanttekeningen" else "bewijsplaatsen"
-    val nootKort: String get() = if (isBijbel) "kantt." else "bewijspl."
+    val noteName: String get() = if (isBible) "kanttekening" else "bewijsplaats"
+    val noteNamePlural: String get() = if (isBible) "kanttekeningen" else "bewijsplaatsen"
+    val noteShort: String get() = if (isBible) "kantt." else "bewijspl."
 }
 
 class Verse(
@@ -60,7 +60,7 @@ class Hit(
 
 class Citation(val b: Int, val c: Int, val v: Int, val n: Int, val cw: String, val text: String)
 
-fun normaliseer(s: String): String =
+fun normalize(s: String): String =
     Normalizer.normalize(s, Normalizer.Form.NFD)
         .replace(MARKS, "")
         .lowercase()
@@ -89,7 +89,7 @@ private fun parseSpans(s: String?): List<Span> {
     return out
 }
 
-object Bijbel {
+object Bible {
     const val DB_ASSET = "bijbel.db"
     const val DB_VERSION = 4
 
@@ -100,16 +100,16 @@ object Bijbel {
         private set
     private lateinit var byNum: Map<Int, Book>
 
-    // Bij elke app-update opnieuw uitpakken, anders blijft een oude tekst staan.
+    // Re-extract on every app update, otherwise an old text would linger.
     fun open(ctx: Context) {
         if (ready.get()) return
-        val bijgewerkt = runCatching {
+        val lastUpdate = runCatching {
             ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime
         }.getOrDefault(0L)
         val sp = ctx.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
-        val vorige = sp.getLong("db_stempel", -1L)
+        val prevStamp = sp.getLong("db_stempel", -1L)
         val target = File(ctx.filesDir, "bijbel-v$DB_VERSION.db")
-        if (!target.exists() || target.length() < 1_000_000 || vorige != bijgewerkt) {
+        if (!target.exists() || target.length() < 1_000_000 || prevStamp != lastUpdate) {
             ctx.filesDir.listFiles { f -> f.name.startsWith("bijbel-v") }
                 ?.forEach { it.delete() }
             val tmp = File(ctx.filesDir, "bijbel.tmp")
@@ -117,7 +117,7 @@ object Bijbel {
                 tmp.outputStream().use { out -> input.copyTo(out, 1 shl 16) }
             }
             tmp.renameTo(target)
-            sp.edit().putLong("db_stempel", bijgewerkt).apply()
+            sp.edit().putLong("db_stempel", lastUpdate).apply()
         }
         db = SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY)
         books = db.rawQuery(
@@ -146,12 +146,12 @@ object Bijbel {
 
     fun ref(b: Int, c: Int, v: Int, end: Int = 0): String {
         val bk = byNum[b] ?: return ""
-        // "Joh. 3:16", maar "Ruth 1:1", "HC 1:1" en "Ps. ber. 23:1".
-        val punt = if (!bk.abbr.endsWith(".") && !bk.abbr.equals(bk.name, true) &&
+        // "Joh. 3:16", but "Ruth 1:1", "HC 1:1" and "Ps. ber. 23:1".
+        val dot = if (!bk.abbr.endsWith(".") && !bk.abbr.equals(bk.name, true) &&
             bk.name.startsWith(bk.abbr, ignoreCase = true)
         ) "." else ""
         return buildString {
-            append(bk.abbr); append(punt); append(' '); append(c)
+            append(bk.abbr); append(dot); append(' '); append(c)
             if (v > 0) { append(':'); append(v) }
             if (end > v) { append('-'); append(end) }
         }
@@ -207,10 +207,10 @@ object Bijbel {
         return out
     }
 
-    private val titelCache = HashMap<Int, Map<Int, String>>()
+    private val titleCache = HashMap<Int, Map<Int, String>>()
 
-    fun hoofdstukTitels(b: Int): Map<Int, String> = synchronized(titelCache) {
-        titelCache.getOrPut(b) {
+    fun chapterTitles(b: Int): Map<Int, String> = synchronized(titleCache) {
+        titleCache.getOrPut(b) {
             val m = HashMap<Int, String>()
             db.rawQuery(
                 "SELECT c,titel FROM chapters WHERE b=? AND titel<>''",
@@ -220,7 +220,7 @@ object Bijbel {
         }
     }
 
-    fun hoofdstukTitel(b: Int, c: Int): String? = hoofdstukTitels(b)[c]
+    fun chapterTitle(b: Int, c: Int): String? = chapterTitles(b)[c]
 
     fun citations(b: Int, c: Int, v: Int): List<Citation> =
         db.rawQuery(
@@ -312,12 +312,12 @@ object Bijbel {
         return out.copyOf(n)
     }
 
-    // Het laatste woord telt als prefix, zodat resultaten meelopen met het typen.
+    // The last word counts as a prefix, so results keep up with typing.
     fun search(
         query: String, inNotes: Boolean, limit: Int = 400,
         bookFilter: Int = 0, testament: String = "",
     ): List<Hit> {
-        val q = normaliseer(query).trim()
+        val q = normalize(query).trim()
         if (q.length < 2) return emptyList()
         val terms = WORDS.findAll(q).map { it.value }.toList()
         if (terms.isEmpty()) return emptyList()
@@ -357,7 +357,7 @@ object Bijbel {
                     val hit = if (inNotes)
                         Hit(b, cur.getInt(1), cur.getInt(2), text, cur.getInt(4), cur.getString(5) ?: "")
                     else Hit(b, cur.getInt(1), cur.getInt(2), text)
-                    if (wantPhrase && !normaliseer(text).contains(phrase)) {
+                    if (wantPhrase && !normalize(text).contains(phrase)) {
                         if (extra.size < limit) extra.add(hit)
                     } else if (hits.size < limit) hits.add(hit)
                 }
@@ -367,43 +367,43 @@ object Bijbel {
         return hits
     }
 
-    private fun compact(s: String) = normaliseer(s).replace(NIETLETTER, "")
+    private fun compact(s: String) = normalize(s).replace(NON_ALNUM, "")
 
-    fun boekDeel(invoer: String): String {
-        val s = normaliseer(invoer).trim()
-        val laatste = s.indexOfLast { it in 'a'..'z' }
-        return if (laatste < 0) "" else s.substring(0, laatste + 1).trim()
+    fun bookPart(input: String): String {
+        val s = normalize(input).trim()
+        val lastLetter = s.indexOfLast { it in 'a'..'z' }
+        return if (lastLetter < 0) "" else s.substring(0, lastLetter + 1).trim()
     }
 
-    fun boekKandidaten(invoer: String): List<Book> {
-        val q = compact(invoer)
+    fun bookCandidates(input: String): List<Book> {
+        val q = compact(input)
         if (q.isEmpty()) return emptyList()
-        fun hoofd(bk: Book) = listOf(compact(bk.name), compact(bk.abbr), compact(bk.code))
-        books.firstOrNull { bk -> hoofd(bk).any { it == q } }?.let { return listOf(it) }
-        val voor = books.filter { bk -> hoofd(bk).any { it.startsWith(q) } }
-        if (voor.isNotEmpty()) return voor
+        fun mainNames(bk: Book) = listOf(compact(bk.name), compact(bk.abbr), compact(bk.code))
+        books.firstOrNull { bk -> mainNames(bk).any { it == q } }?.let { return listOf(it) }
+        val prefixMatches = books.filter { bk -> mainNames(bk).any { it.startsWith(q) } }
+        if (prefixMatches.isNotEmpty()) return prefixMatches
         if (q.length >= 2) {
             val viaAlt = books.filter { bk ->
                 bk.alt.split(' ').any { w -> w.length >= 2 && compact(w).startsWith(q) }
             }
             if (viaAlt.isNotEmpty()) return viaAlt
         }
-        return books.filter { bk -> hoofd(bk).any { it.length >= 3 && q.startsWith(it) } }
+        return books.filter { bk -> mainNames(bk).any { it.length >= 3 && q.startsWith(it) } }
     }
 
-    fun parseReference(invoer: String): Triple<Int, Int, Int>? {
-        val s = normaliseer(invoer).trim()
+    fun parseReference(input: String): Triple<Int, Int, Int>? {
+        val s = normalize(input).trim()
         if (s.isEmpty()) return null
-        val laatsteLetter = s.indexOfLast { it in 'a'..'z' }
-        if (laatsteLetter < 0) return null
-        val naam = s.substring(0, laatsteLetter + 1)
-        val rest = s.substring(laatsteLetter + 1)
-        val getallen = Regex("\\d+").findAll(rest).map { it.value.toInt() }.toList()
-        val bk = boekKandidaten(naam).minByOrNull { it.name.length } ?: return null
-        val c = (getallen.getOrNull(0) ?: 1).coerceIn(1, bk.chapters)
-        val v = getallen.getOrNull(1) ?: 0
+        val lastLetter = s.indexOfLast { it in 'a'..'z' }
+        if (lastLetter < 0) return null
+        val name = s.substring(0, lastLetter + 1)
+        val rest = s.substring(lastLetter + 1)
+        val numbers = Regex("\\d+").findAll(rest).map { it.value.toInt() }.toList()
+        val bk = bookCandidates(name).minByOrNull { it.name.length } ?: return null
+        val c = (numbers.getOrNull(0) ?: 1).coerceIn(1, bk.chapters)
+        val v = numbers.getOrNull(1) ?: 0
         return Triple(bk.b, c, v)
     }
 }
 
-private val NIETLETTER = Regex("[^a-z0-9]")
+private val NON_ALNUM = Regex("[^a-z0-9]")

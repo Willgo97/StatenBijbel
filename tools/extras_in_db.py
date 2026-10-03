@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-extras.json -> rijen in bijbel.db; aangeroepen vanuit build_db.py.
-Bewijsteksten worden kanttekeningen (letter als trefwoord) en gaan ook in xref.
+extras.json -> rows in bijbel.db; called from build_db.py.
+Proof texts become notes (letter as catchword) and also go into xref.
 """
 import json
 import os
 import re
 import unicodedata
 
-# (boeknr, code, naam, afkorting, groep in extras.json, soort, zoektermen)
-EXTRA_BOEKEN = [
+# (book number, code, name, abbreviation, group in extras.json, category, search aliases)
+EXTRA_BOOKS = [
     (101, "PSB", "Psalmen (berijmd)", "Ps. ber.", "psalm", "psalm",
      "psalmberijming berijmde psalmen 1773 zingen"),
     (102, "GEZ", "Gezangen", "Gez.", "gezang", "psalm",
@@ -35,85 +35,85 @@ def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
 
 
-def net_titel(t):
-    """De eerste regel is de kop, de rest het onderschrift."""
-    regels = [r.strip() for r in (t or "").split("\n") if r.strip()]
-    if not regels:
+def split_title(t):
+    """The first line is the heading, the rest the subtitle."""
+    lines = [r.strip() for r in (t or "").split("\n") if r.strip()]
+    if not lines:
         return "", ""
-    kop = regels[0]
-    onder = " ".join(regels[1:])
-    return kop, onder
+    heading = lines[0]
+    subtitle = " ".join(lines[1:])
+    return heading, subtitle
 
 
-def laad(pad):
-    if not os.path.exists(pad):
+def load(path):
+    if not os.path.exists(path):
         return None
-    with open(pad, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def voeg_toe(extras, boeknr_van_slug, spans_str, norm, WORD,
+def add_rows(extras, book_by_slug, spans_str, norm, WORD,
              book_rows, chap_rows, verse_rows, note_rows, xref_rows,
              post_v, post_n, vid, nid):
-    """Vult de rijen aan; geeft de nieuwe vid- en nid-tellers terug."""
-    for bnum, code, naam, afk, groep, soort, zoek in EXTRA_BOEKEN:
-        pagina = extras.get(groep)
-        if not pagina:
+    """Appends the rows; returns the new vid and nid counters."""
+    for bnum, code, name, abbr, group, category, aliases in EXTRA_BOOKS:
+        pages = extras.get(group)
+        if not pages:
             continue
-        sleutels = sorted(pagina, key=lambda x: int(x))
-        totaal_v = totaal_n = 0
-        for c_index, sleutel in enumerate(sleutels, 1):
-            p = pagina[sleutel]
-            c = int(sleutel)
-            kop, onder = net_titel(p["titel"])
+        keys = sorted(pages, key=lambda x: int(x))
+        total_v = total_n = 0
+        for c_index, key in enumerate(keys, 1):
+            p = pages[key]
+            c = int(key)
+            heading, subtitle = split_title(p["titel"])
             note_no = 0
-            for rij in p["rijen"]:
-                v = rij["n"]
-                tekst = rij["tekst"]
+            for row in p["rijen"]:
+                v = row["n"]
+                text = row["tekst"]
                 spans = []
 
-                eigen = rij.get("verwijzingen") or p.get("verwijzingen") or {}
-                for merk in rij.get("merken", []):
-                    plaatsen = eigen.get(merk["letter"]) or []
-                    if not plaatsen:
+                own_refs = row.get("verwijzingen") or p.get("verwijzingen") or {}
+                for mark in row.get("merken", []):
+                    places = own_refs.get(mark["letter"]) or []
+                    if not places:
                         continue
                     note_no += 1
                     nid += 1
-                    spans.append(("n", merk["p"], merk["p"], str(note_no)))
-                    stukken = []
+                    spans.append(("n", mark["p"], mark["p"], str(note_no)))
+                    pieces = []
                     nspans = []
-                    for pl in plaatsen:
-                        tb = boeknr_van_slug.get(pl["boek"])
+                    for pl in places:
+                        tb = book_by_slug.get(pl["boek"])
                         label = pl["label"]
-                        if stukken:
-                            stukken.append("; ")
-                        begin = sum(len(x) for x in stukken)
-                        stukken.append(label)
+                        if pieces:
+                            pieces.append("; ")
+                        start = sum(len(x) for x in pieces)
+                        pieces.append(label)
                         if tb:
-                            nspans.append(("r", begin, begin + len(label),
+                            nspans.append(("r", start, start + len(label),
                                            "%d.%d.%d.0" % (tb, pl["h"], pl["v"])))
                             xref_rows.append((nid, bnum, c, v, tb, pl["h"], pl["v"], 0))
-                    ntekst = "".join(stukken)
-                    note_rows.append((nid, bnum, c, v, note_no, merk["letter"],
-                                      ntekst, spans_str(nspans)))
-                    for term in set(WORD.findall(norm(ntekst))):
+                    ntext = "".join(pieces)
+                    note_rows.append((nid, bnum, c, v, note_no, mark["letter"],
+                                      ntext, spans_str(nspans)))
+                    for term in set(WORD.findall(norm(ntext))):
                         if len(term) > 1:
                             post_n[term].append(nid)
 
                 vid += 1
                 spans.sort(key=lambda x: (x[1], x[2]))
-                verse_rows.append((vid, bnum, c, v, tekst, spans_str(spans), 0))
-                for term in set(WORD.findall(norm(tekst))):
+                verse_rows.append((vid, bnum, c, v, text, spans_str(spans), 0))
+                for term in set(WORD.findall(norm(text))):
                     if len(term) > 1:
                         post_v[term].append(vid)
-                totaal_v += 1
-            titel = kop if kop else ""
-            if onder:
-                titel = (titel + "\n" + onder) if titel else onder
-            chap_rows.append((bnum, c, len(p["rijen"]), note_no, titel))
-            totaal_n += note_no
-        book_rows.append((bnum, code, naam, afk, "EX", "", len(sleutels),
-                          totaal_v, totaal_n, zoek, soort))
-        print("  %-4s %-30s %3d dl %5d blk %5d verw."
-              % (code, naam, len(sleutels), totaal_v, totaal_n))
+                total_v += 1
+            title = heading if heading else ""
+            if subtitle:
+                title = (title + "\n" + subtitle) if title else subtitle
+            chap_rows.append((bnum, c, len(p["rijen"]), note_no, title))
+            total_n += note_no
+        book_rows.append((bnum, code, name, abbr, "EX", "", len(keys),
+                          total_v, total_n, aliases, category))
+        print("  %-4s %-30s %3d pt %5d blk %5d refs"
+              % (code, name, len(keys), total_v, total_n))
     return vid, nid

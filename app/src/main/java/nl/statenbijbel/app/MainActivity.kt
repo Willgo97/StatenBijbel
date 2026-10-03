@@ -30,69 +30,69 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class Scherm { LEZEN, KIEZEN, ZOEKEN, BLADWIJZERS, INSTELLINGEN }
+enum class Screen { READER, BOOKS, SEARCH, BOOKMARKS, SETTINGS }
 
 object Index {
-    lateinit var paren: List<Pair<Int, Int>>
+    lateinit var pairs: List<Pair<Int, Int>>
         private set
-    private lateinit var begin: IntArray
+    private lateinit var start: IntArray
 
-    fun bouw() {
+    fun build() {
         val l = ArrayList<Pair<Int, Int>>(1500)
-        // Op boeknummer, niet op volgorde: het kerkboek begint bij 101.
-        val b = IntArray((Bijbel.books.maxOfOrNull { it.b } ?: 0) + 2)
-        Bijbel.books.forEach { boek ->
-            b[boek.b] = l.size
-            for (c in 1..boek.chapters) l.add(boek.b to c)
+        // By book number, not by order: the church book starts at 101.
+        val b = IntArray((Bible.books.maxOfOrNull { it.b } ?: 0) + 2)
+        Bible.books.forEach { book ->
+            b[book.b] = l.size
+            for (c in 1..book.chapters) l.add(book.b to c)
         }
-        paren = l
-        begin = b
+        pairs = l
+        start = b
     }
 
-    fun index(b: Int, c: Int): Int = (begin.getOrNull(b) ?: 0) + (c - 1).coerceAtLeast(0)
-    fun boekVan(i: Int) = paren[i.coerceIn(0, paren.size - 1)].first
-    fun hoofdstukVan(i: Int) = paren[i.coerceIn(0, paren.size - 1)].second
-    val aantal get() = paren.size
+    fun index(b: Int, c: Int): Int = (start.getOrNull(b) ?: 0) + (c - 1).coerceAtLeast(0)
+    fun bookAt(i: Int) = pairs[i.coerceIn(0, pairs.size - 1)].first
+    fun chapterAt(i: Int) = pairs[i.coerceIn(0, pairs.size - 1)].second
+    val count get() = pairs.size
 }
 
 class AppState {
-    var scherm by mutableStateOf(Scherm.LEZEN)
-    var boek by mutableIntStateOf(1)
-    var hoofdstuk by mutableIntStateOf(1)
-    var springNaarVers by mutableIntStateOf(0)
-    var gekozenVers by mutableIntStateOf(0)
+    var screen by mutableStateOf(Screen.READER)
+    var book by mutableIntStateOf(1)
+    var chapter by mutableIntStateOf(1)
+    var scrollToVerse by mutableIntStateOf(0)
+    var selectedVerse by mutableIntStateOf(0)
 
-    var kantB by mutableIntStateOf(0)
-    var kantC by mutableIntStateOf(0)
-    var kantV by mutableIntStateOf(0)
-    var kantN by mutableIntStateOf(0)
+    var noteB by mutableIntStateOf(0)
+    var noteC by mutableIntStateOf(0)
+    var noteV by mutableIntStateOf(0)
+    var noteN by mutableIntStateOf(0)
 
-    var verwijzingenVoor by mutableStateOf<Triple<Int, Int, Int>?>(null)
-    var kiesBoek by mutableIntStateOf(0)
+    var citationsFor by mutableStateOf<Triple<Int, Int, Int>?>(null)
+    var pickedBook by mutableIntStateOf(0)
 
-    fun kantOpen(b: Int, c: Int, v: Int) = kantB == b && kantC == c && kantV == v
+    fun notesOpen(b: Int, c: Int, v: Int) = noteB == b && noteC == c && noteV == v
 
-    fun wisselKant(b: Int, c: Int, v: Int, n: Int = 0) {
-        if (kantOpen(b, c, v) && (n == 0 || n == kantN)) {
-            kantB = 0; kantC = 0; kantV = 0; kantN = 0
+    fun toggleNotes(b: Int, c: Int, v: Int, n: Int = 0) {
+        if (notesOpen(b, c, v) && (n == 0 || n == noteN)) {
+            noteB = 0; noteC = 0; noteV = 0; noteN = 0
         } else {
-            kantB = b; kantC = c; kantV = v; kantN = n
+            noteB = b; noteC = c; noteV = v; noteN = n
         }
     }
 
-    fun toonKanttekening(b: Int, c: Int, v: Int, n: Int) {
-        ga(b, c, v)
-        kantB = b; kantC = c; kantV = v; kantN = n
+    fun showNote(b: Int, c: Int, v: Int, n: Int) {
+        goTo(b, c, v)
+        noteB = b; noteC = c; noteV = v; noteN = n
     }
 
-    fun ga(b: Int, c: Int, v: Int = 0) {
-        boek = b
-        hoofdstuk = c
-        springNaarVers = v
-        gekozenVers = v
-        scherm = Scherm.LEZEN
-        Prefs.onthoudPlek(b, c, v)
-        Prefs.voegGeschiedenisToe(b, c)
+    fun goTo(b: Int, c: Int, v: Int = 0) {
+        book = b
+        chapter = c
+        scrollToVerse = v
+        selectedVerse = v
+        screen = Screen.READER
+        Prefs.savePosition(b, c, v)
+        Prefs.addToHistory(b, c)
     }
 }
 
@@ -107,23 +107,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(activity: ComponentActivity) {
     val ctx = LocalContext.current
-    var klaar by remember { mutableStateOf(false) }
-    var fout by remember { mutableStateOf<String?>(null) }
+    var ready by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
                 Prefs.load(ctx)
-                Bijbel.open(ctx)
-                Index.bouw()
+                Bible.open(ctx)
+                Index.build()
             } catch (e: Throwable) {
-                fout = e.message ?: e.toString()
+                error = e.message ?: e.toString()
             }
         }
-        klaar = true
+        ready = true
     }
 
-    if (!klaar || fout != null) {
+    if (!ready || error != null) {
         Surface(color = Color(0xFFFBF7F0)) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -134,12 +134,12 @@ fun App(activity: ComponentActivity) {
                         color = Color(0xFF2F4858),
                     )
                     Text(
-                        fout ?: "de tekst wordt klaargezet…",
+                        error ?: "de tekst wordt klaargezet…",
                         fontSize = 13.sp,
                         color = Color(0xFF7A7168),
                         modifier = Modifier.padding(top = 10.dp),
                     )
-                    if (fout == null) {
+                    if (error == null) {
                         CircularProgressIndicator(
                             Modifier.padding(top = 22.dp),
                             color = Color(0xFF8A6431),
@@ -155,13 +155,13 @@ fun App(activity: ComponentActivity) {
     StatenBijbelTheme {
         val st = remember {
             AppState().apply {
-                boek = if (Bijbel.bookOrNull(Prefs.boek) != null) Prefs.boek else 1
-                hoofdstuk = Prefs.hoofdstuk
-                springNaarVers = Prefs.vers
+                book = if (Bible.bookOrNull(Prefs.book) != null) Prefs.book else 1
+                chapter = Prefs.chapter
+                scrollToVerse = Prefs.verse
             }
         }
-        LaunchedEffect(Prefs.schermAan) {
-            if (Prefs.schermAan)
+        LaunchedEffect(Prefs.keepScreenOn) {
+            if (Prefs.keepScreenOn)
                 activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             else
                 activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -169,19 +169,19 @@ fun App(activity: ComponentActivity) {
 
         Surface(
             Modifier.fillMaxSize(),
-            color = LocalLeeskleuren.current.papier,
+            color = LocalReadingColors.current.paper,
         ) {
-            when (st.scherm) {
-                Scherm.LEZEN -> Lezer(st)
-                Scherm.KIEZEN -> KiesScherm(st)
-                Scherm.ZOEKEN -> ZoekScherm(st)
-                Scherm.BLADWIJZERS -> BladwijzerScherm(st)
-                Scherm.INSTELLINGEN -> InstellingenScherm(st)
+            when (st.screen) {
+                Screen.READER -> Reader(st)
+                Screen.BOOKS -> BooksScreen(st)
+                Screen.SEARCH -> SearchScreen(st)
+                Screen.BOOKMARKS -> BookmarksScreen(st)
+                Screen.SETTINGS -> SettingsScreen(st)
             }
         }
 
-        if (st.scherm != Scherm.LEZEN) {
-            BackHandler { st.scherm = Scherm.LEZEN }
+        if (st.screen != Screen.READER) {
+            BackHandler { st.screen = Screen.READER }
         }
     }
 }
