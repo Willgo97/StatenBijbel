@@ -22,36 +22,41 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import nl.statenbijbel.app.screens.BookmarksScreen
+import nl.statenbijbel.app.screens.BooksScreen
+import nl.statenbijbel.app.screens.SearchScreen
+import nl.statenbijbel.app.screens.SettingsScreen
+import nl.statenbijbel.app.screens.reader.Reader
 
 enum class Screen { READER, BOOKS, SEARCH, BOOKMARKS, SETTINGS }
 
 object Index {
     lateinit var pairs: List<Pair<Int, Int>>
         private set
-    private lateinit var start: IntArray
+    private lateinit var firstPageOfBook: IntArray
 
     fun build() {
-        val l = ArrayList<Pair<Int, Int>>(1500)
+        val chapterPairs = ArrayList<Pair<Int, Int>>(1500)
         // By book number, not by order: the church book starts at 101.
-        val b = IntArray((Bible.books.maxOfOrNull { it.b } ?: 0) + 2)
+        val firstPages = IntArray((Bible.books.maxOfOrNull { it.number } ?: 0) + 2)
         Bible.books.forEach { book ->
-            b[book.b] = l.size
-            for (c in 1..book.chapters) l.add(book.b to c)
+            firstPages[book.number] = chapterPairs.size
+            for (chapter in 1..book.chapterCount) chapterPairs.add(book.number to chapter)
         }
-        pairs = l
-        start = b
+        pairs = chapterPairs
+        firstPageOfBook = firstPages
     }
 
-    fun index(b: Int, c: Int): Int = (start.getOrNull(b) ?: 0) + (c - 1).coerceAtLeast(0)
-    fun bookAt(i: Int) = pairs[i.coerceIn(0, pairs.size - 1)].first
-    fun chapterAt(i: Int) = pairs[i.coerceIn(0, pairs.size - 1)].second
+    fun index(book: Int, chapter: Int): Int =
+        (firstPageOfBook.getOrNull(book) ?: 0) + (chapter - 1).coerceAtLeast(0)
+    fun bookAt(page: Int) = pairs[page.coerceIn(0, pairs.size - 1)].first
+    fun chapterAt(page: Int) = pairs[page.coerceIn(0, pairs.size - 1)].second
     val count get() = pairs.size
 }
 
@@ -62,37 +67,41 @@ class AppState {
     var scrollToVerse by mutableIntStateOf(0)
     var selectedVerse by mutableIntStateOf(0)
 
-    var noteB by mutableIntStateOf(0)
-    var noteC by mutableIntStateOf(0)
-    var noteV by mutableIntStateOf(0)
-    var noteN by mutableIntStateOf(0)
+    // The verse whose notes are open, and the note that is highlighted (0 = none).
+    var notesBook by mutableIntStateOf(0)
+    var notesChapter by mutableIntStateOf(0)
+    var notesVerse by mutableIntStateOf(0)
+    var highlightedNote by mutableIntStateOf(0)
 
     var citationsFor by mutableStateOf<Triple<Int, Int, Int>?>(null)
     var pickedBook by mutableIntStateOf(0)
 
-    fun notesOpen(b: Int, c: Int, v: Int) = noteB == b && noteC == c && noteV == v
+    fun notesOpen(book: Int, chapter: Int, verse: Int) =
+        notesBook == book && notesChapter == chapter && notesVerse == verse
 
-    fun toggleNotes(b: Int, c: Int, v: Int, n: Int = 0) {
-        if (notesOpen(b, c, v) && (n == 0 || n == noteN)) {
-            noteB = 0; noteC = 0; noteV = 0; noteN = 0
+    fun toggleNotes(book: Int, chapter: Int, verse: Int, noteNumber: Int = 0) {
+        if (notesOpen(book, chapter, verse) && (noteNumber == 0 || noteNumber == highlightedNote)) {
+            notesBook = 0; notesChapter = 0; notesVerse = 0; highlightedNote = 0
         } else {
-            noteB = b; noteC = c; noteV = v; noteN = n
+            notesBook = book; notesChapter = chapter; notesVerse = verse
+            highlightedNote = noteNumber
         }
     }
 
-    fun showNote(b: Int, c: Int, v: Int, n: Int) {
-        goTo(b, c, v)
-        noteB = b; noteC = c; noteV = v; noteN = n
+    fun showNote(book: Int, chapter: Int, verse: Int, noteNumber: Int) {
+        goTo(book, chapter, verse)
+        notesBook = book; notesChapter = chapter; notesVerse = verse
+        highlightedNote = noteNumber
     }
 
-    fun goTo(b: Int, c: Int, v: Int = 0) {
-        book = b
-        chapter = c
-        scrollToVerse = v
-        selectedVerse = v
+    fun goTo(book: Int, chapter: Int, verse: Int = 0) {
+        this.book = book
+        this.chapter = chapter
+        scrollToVerse = verse
+        selectedVerse = verse
         screen = Screen.READER
-        Prefs.savePosition(b, c, v)
-        Prefs.addToHistory(b, c)
+        Prefs.savePosition(book, chapter, verse)
+        Prefs.addToHistory(book, chapter)
     }
 }
 
@@ -106,15 +115,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(activity: ComponentActivity) {
-    val ctx = LocalContext.current
+    val context = LocalContext.current
     var ready by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                Prefs.load(ctx)
-                Bible.open(ctx)
+                Prefs.load(context)
+                Bible.open(context)
                 Index.build()
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
@@ -124,25 +133,25 @@ fun App(activity: ComponentActivity) {
     }
 
     if (!ready || error != null) {
-        Surface(color = Color(0xFFFBF7F0)) {
+        Surface(color = lightColors.paper) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "StatenBijbel",
                         fontFamily = FontFamily.Serif,
                         fontSize = 26.sp,
-                        color = Color(0xFF2F4858),
+                        color = lightColors.ink,
                     )
                     Text(
                         error ?: "de tekst wordt klaargezet…",
                         fontSize = 13.sp,
-                        color = Color(0xFF7A7168),
+                        color = lightColors.muted,
                         modifier = Modifier.padding(top = 10.dp),
                     )
                     if (error == null) {
                         CircularProgressIndicator(
                             Modifier.padding(top = 22.dp),
-                            color = Color(0xFF8A6431),
+                            color = lightColors.accent,
                             strokeWidth = 2.dp,
                         )
                     }
@@ -153,7 +162,7 @@ fun App(activity: ComponentActivity) {
     }
 
     StatenBijbelTheme {
-        val st = remember {
+        val state = remember {
             AppState().apply {
                 book = if (Bible.bookOrNull(Prefs.book) != null) Prefs.book else 1
                 chapter = Prefs.chapter
@@ -171,17 +180,17 @@ fun App(activity: ComponentActivity) {
             Modifier.fillMaxSize(),
             color = LocalReadingColors.current.paper,
         ) {
-            when (st.screen) {
-                Screen.READER -> Reader(st)
-                Screen.BOOKS -> BooksScreen(st)
-                Screen.SEARCH -> SearchScreen(st)
-                Screen.BOOKMARKS -> BookmarksScreen(st)
-                Screen.SETTINGS -> SettingsScreen(st)
+            when (state.screen) {
+                Screen.READER -> Reader(state)
+                Screen.BOOKS -> BooksScreen(state)
+                Screen.SEARCH -> SearchScreen(state)
+                Screen.BOOKMARKS -> BookmarksScreen(state)
+                Screen.SETTINGS -> SettingsScreen(state)
             }
         }
 
-        if (st.screen != Screen.READER) {
-            BackHandler { st.screen = Screen.READER }
+        if (state.screen != Screen.READER) {
+            BackHandler { state.screen = Screen.READER }
         }
     }
 }

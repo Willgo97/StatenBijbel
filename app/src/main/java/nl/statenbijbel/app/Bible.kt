@@ -9,84 +9,88 @@ import java.util.concurrent.atomic.AtomicBoolean
 class Span(val kind: Char, val start: Int, val end: Int, val value: String)
 
 class Book(
-    val b: Int, val code: String, val name: String, val abbr: String,
-    val testament: String, val title: String, val chapters: Int,
-    val verses: Int, val notes: Int, val alt: String, val category: String,
+    val number: Int, val code: String, val name: String, val abbreviation: String,
+    val testament: String, val title: String, val chapterCount: Int,
+    val aliases: String,
 ) {
-    val searchText: String = normalize("$name $abbr $alt $code")
+    val searchText: String = normalize("$name $abbreviation $aliases $code")
 
-    val isBible: Boolean get() = category == "bijbel"
-
-    val unit: String
-        get() = when {
-            category == "bijbel" || category == "psalm" -> "vers"
-            code == "HCA" -> "vraag"
-            code == "DLR" -> "artikel"
-            else -> "gedeelte"
-        }
-
-    val noteName: String get() = if (isBible) "kanttekening" else "bewijsplaats"
-    val noteNamePlural: String get() = if (isBible) "kanttekeningen" else "bewijsplaatsen"
-    val noteShort: String get() = if (isBible) "kantt." else "bewijspl."
+    // The church book (metrical psalms, confessions, forms, prayers) has testament "EX".
+    val isBible: Boolean get() = testament != "EX"
 }
 
 class Verse(
-    val vid: Int, val b: Int, val c: Int, val v: Int,
+    val id: Int, val book: Int, val chapter: Int, val number: Int,
     val text: String, val spans: List<Span>,
 )
 
 class Note(
-    val nid: Int, val b: Int, val c: Int, val v: Int, val n: Int,
-    val cw: String, val text: String, val spans: List<Span>,
+    val id: Int, val book: Int, val chapter: Int, val verse: Int, val number: Int,
+    val catchword: String, val text: String, val spans: List<Span>,
 )
 
-class Ref(val b: Int, val c: Int, val v: Int, val end: Int) {
+class Ref(val book: Int, val chapter: Int, val verse: Int, val endVerse: Int) {
     companion object {
-        fun parse(s: String): Ref? {
-            val p = s.split('.')
-            if (p.size < 3) return null
+        fun parse(value: String): Ref? {
+            val parts = value.split('.')
+            if (parts.size < 3) return null
             return try {
-                Ref(p[0].toInt(), p[1].toInt(), p[2].toInt(),
-                    if (p.size > 3) p[3].toInt() else 0)
+                Ref(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(),
+                    if (parts.size > 3) parts[3].toInt() else 0)
             } catch (e: NumberFormatException) { null }
         }
     }
 }
 
+// noteNumber is 0 for a hit in the Bible text itself.
 class Hit(
-    val b: Int, val c: Int, val v: Int, val text: String,
-    val noteNo: Int = 0, val catchWord: String = "",
+    val book: Int, val chapter: Int, val verse: Int, val text: String, val spans: List<Span>,
+    val noteNumber: Int = 0, val catchword: String = "",
 )
 
-class Citation(val b: Int, val c: Int, val v: Int, val n: Int, val cw: String, val text: String)
+class Citation(
+    val book: Int, val chapter: Int, val verse: Int, val noteNumber: Int,
+    val catchword: String, val text: String, val spans: List<Span>,
+)
 
-fun normalize(s: String): String =
-    Normalizer.normalize(s, Normalizer.Form.NFD)
+class ChapterTitle(val title: String, val subtitle: String)
+
+fun normalize(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFD)
         .replace(MARKS, "")
         .lowercase()
 
-private val MARKS = Regex("\\p{Mn}+")
-private val WORDS = Regex("[a-z0-9]+")
+// Like normalize, but one character at a time, so positions stay aligned with the original.
+fun normalizeChar(character: Char): Char {
+    if (character.code < 128) return character.lowercaseChar()
+    val base = Normalizer.normalize(character.toString(), Normalizer.Form.NFD)
+        .firstOrNull { Character.getType(it) != Character.NON_SPACING_MARK.toInt() }
+    return (base ?: character).lowercaseChar()
+}
 
-private fun parseSpans(s: String?): List<Span> {
-    if (s.isNullOrEmpty()) return emptyList()
-    val out = ArrayList<Span>(8)
-    for (part in s.split('|')) {
+val WORD_PATTERN = Regex("[a-z0-9]+")
+private val MARKS = Regex("\\p{Mn}+")
+
+// "kind,start,end,value|kind,start,end,value|..."
+private fun parseSpans(encoded: String?): List<Span> {
+    if (encoded.isNullOrEmpty()) return emptyList()
+    val spans = ArrayList<Span>(8)
+    for (part in encoded.split('|')) {
         if (part.isEmpty()) continue
-        val a = part.indexOf(',')
-        val b = part.indexOf(',', a + 1)
-        val c = part.indexOf(',', b + 1)
-        if (a < 0 || b < 0 || c < 0) continue
-        out.add(
+        val firstComma = part.indexOf(',')
+        val secondComma = part.indexOf(',', firstComma + 1)
+        val thirdComma = part.indexOf(',', secondComma + 1)
+        if (firstComma < 0 || secondComma < 0 || thirdComma < 0) continue
+        spans.add(
             Span(
                 part[0],
-                part.substring(a + 1, b).toInt(),
-                part.substring(b + 1, c).toInt(),
-                part.substring(c + 1),
+                part.substring(firstComma + 1, secondComma).toInt(),
+                part.substring(secondComma + 1, thirdComma).toInt(),
+                part.substring(thirdComma + 1),
             )
         )
     }
-    return out
+    return spans
 }
 
 object Bible {
@@ -98,218 +102,242 @@ object Bible {
 
     lateinit var books: List<Book>
         private set
-    private lateinit var byNum: Map<Int, Book>
+    private lateinit var booksByNumber: Map<Int, Book>
 
     // Re-extract on every app update, otherwise an old text would linger.
-    fun open(ctx: Context) {
+    fun open(context: Context) {
         if (ready.get()) return
         val lastUpdate = runCatching {
-            ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime
+            context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         }.getOrDefault(0L)
-        val sp = ctx.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
-        val prevStamp = sp.getLong("db_stempel", -1L)
-        val target = File(ctx.filesDir, "bijbel-v$DB_VERSION.db")
+        val prefs = context.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
+        val prevStamp = prefs.getLong("db_stempel", -1L)
+        val target = File(context.filesDir, "bijbel-v$DB_VERSION.db")
         if (!target.exists() || target.length() < 1_000_000 || prevStamp != lastUpdate) {
-            ctx.filesDir.listFiles { f -> f.name.startsWith("bijbel-v") }
+            context.filesDir.listFiles { file -> file.name.startsWith("bijbel-v") }
                 ?.forEach { it.delete() }
-            val tmp = File(ctx.filesDir, "bijbel.tmp")
-            ctx.assets.open(DB_ASSET).use { input ->
-                tmp.outputStream().use { out -> input.copyTo(out, 1 shl 16) }
+            val tempFile = File(context.filesDir, "bijbel.tmp")
+            context.assets.open(DB_ASSET).use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output, 1 shl 16) }
             }
-            tmp.renameTo(target)
-            sp.edit().putLong("db_stempel", lastUpdate).apply()
+            tempFile.renameTo(target)
+            prefs.edit().putLong("db_stempel", lastUpdate).apply()
         }
         db = SQLiteDatabase.openDatabase(target.path, null, SQLiteDatabase.OPEN_READONLY)
         books = db.rawQuery(
-            "SELECT b,code,name,abbr,testament,title,chapters,verses,notes,alt," +
-                "soort FROM books ORDER BY b", null
-        ).use { c ->
-            val l = ArrayList<Book>(66)
-            while (c.moveToNext()) {
-                l.add(
+            "SELECT number,code,name,abbreviation,testament,title,chapter_count,aliases " +
+                "FROM books ORDER BY number", null
+        ).use { cursor ->
+            val list = ArrayList<Book>(66)
+            while (cursor.moveToNext()) {
+                list.add(
                     Book(
-                        c.getInt(0), c.getString(1), c.getString(2), c.getString(3),
-                        c.getString(4), c.getString(5) ?: "", c.getInt(6),
-                        c.getInt(7), c.getInt(8), c.getString(9) ?: "",
-                        c.getString(10) ?: "bijbel"
+                        cursor.getInt(0), cursor.getString(1), cursor.getString(2),
+                        cursor.getString(3), cursor.getString(4), cursor.getString(5) ?: "",
+                        cursor.getInt(6), cursor.getString(7) ?: "",
                     )
                 )
             }
-            l
+            list
         }
-        byNum = books.associateBy { it.b }
+        booksByNumber = books.associateBy { it.number }
         ready.set(true)
     }
 
-    fun book(b: Int): Book = byNum[b] ?: books[0]
-    fun bookOrNull(b: Int): Book? = byNum[b]
+    fun book(number: Int): Book = booksByNumber[number] ?: books[0]
+    fun bookOrNull(number: Int): Book? = booksByNumber[number]
 
-    fun ref(b: Int, c: Int, v: Int, end: Int = 0): String {
-        val bk = byNum[b] ?: return ""
+    fun ref(book: Int, chapter: Int, verse: Int, endVerse: Int = 0): String {
+        val bookInfo = booksByNumber[book] ?: return ""
         // "Joh. 3:16", but "Ruth 1:1", "HC 1:1" and "Ps. ber. 23:1".
-        val dot = if (!bk.abbr.endsWith(".") && !bk.abbr.equals(bk.name, true) &&
-            bk.name.startsWith(bk.abbr, ignoreCase = true)
+        val abbreviation = bookInfo.abbreviation
+        val dot = if (!abbreviation.endsWith(".") && !abbreviation.equals(bookInfo.name, true) &&
+            bookInfo.name.startsWith(abbreviation, ignoreCase = true)
         ) "." else ""
         return buildString {
-            append(bk.abbr); append(dot); append(' '); append(c)
-            if (v > 0) { append(':'); append(v) }
-            if (end > v) { append('-'); append(end) }
+            append(abbreviation); append(dot); append(' '); append(chapter)
+            if (verse > 0) { append(':'); append(verse) }
+            if (endVerse > verse) { append('-'); append(endVerse) }
         }
     }
 
     private val chapterCache = object : LinkedHashMap<Long, List<Verse>>(16, 0.75f, true) {
-        override fun removeEldestEntry(e: MutableMap.MutableEntry<Long, List<Verse>>) = size > 12
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, List<Verse>>) =
+            size > 12
     }
 
-    fun verses(b: Int, c: Int): List<Verse> {
-        val key = b * 1000L + c
+    fun verses(book: Int, chapter: Int): List<Verse> {
+        val key = book * 1000L + chapter
         synchronized(chapterCache) { chapterCache[key] }?.let { return it }
-        val out = db.rawQuery(
-            "SELECT vid,b,c,v,text,spans FROM verses WHERE b=? AND c=? ORDER BY v",
-            arrayOf(b.toString(), c.toString())
-        ).use { cur ->
-            val l = ArrayList<Verse>(40)
-            while (cur.moveToNext()) {
-                l.add(
+        val chapterVerses = db.rawQuery(
+            "SELECT id,book,chapter,verse,text,spans FROM verses " +
+                "WHERE book=? AND chapter=? ORDER BY verse",
+            arrayOf(book.toString(), chapter.toString())
+        ).use { cursor ->
+            val list = ArrayList<Verse>(40)
+            while (cursor.moveToNext()) {
+                list.add(
                     Verse(
-                        cur.getInt(0), cur.getInt(1), cur.getInt(2), cur.getInt(3),
-                        cur.getString(4), parseSpans(cur.getString(5))
+                        cursor.getInt(0), cursor.getInt(1), cursor.getInt(2), cursor.getInt(3),
+                        cursor.getString(4), parseSpans(cursor.getString(5))
                     )
                 )
             }
-            l
+            list
         }
-        synchronized(chapterCache) { chapterCache[key] = out }
-        return out
+        synchronized(chapterCache) { chapterCache[key] = chapterVerses }
+        return chapterVerses
     }
 
-    fun verse(b: Int, c: Int, v: Int): Verse? =
-        verses(b, c).firstOrNull { it.v == v }
+    fun verse(book: Int, chapter: Int, verse: Int): Verse? =
+        verses(book, chapter).firstOrNull { it.number == verse }
 
-    fun verseRange(b: Int, c: Int, from: Int, to: Int): List<Verse> =
-        verses(b, c).filter { it.v in from..maxOf(from, to) }
+    fun verseRange(book: Int, chapter: Int, from: Int, to: Int): List<Verse> =
+        verses(book, chapter).filter { it.number in from..maxOf(from, to) }
 
-    fun notes(b: Int, c: Int): Map<Int, List<Note>> {
-        val out = HashMap<Int, MutableList<Note>>()
+    fun notes(book: Int, chapter: Int): Map<Int, List<Note>> {
+        val notesByVerse = HashMap<Int, MutableList<Note>>()
         db.rawQuery(
-            "SELECT nid,b,c,v,n,cw,text,spans FROM notes WHERE b=? AND c=? ORDER BY n",
-            arrayOf(b.toString(), c.toString())
-        ).use { cur ->
-            while (cur.moveToNext()) {
-                val n = Note(
-                    cur.getInt(0), cur.getInt(1), cur.getInt(2), cur.getInt(3),
-                    cur.getInt(4), cur.getString(5) ?: "", cur.getString(6),
-                    parseSpans(cur.getString(7))
+            "SELECT id,book,chapter,verse,number,catchword,text,spans FROM notes " +
+                "WHERE book=? AND chapter=? ORDER BY number",
+            arrayOf(book.toString(), chapter.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val note = Note(
+                    cursor.getInt(0), cursor.getInt(1), cursor.getInt(2), cursor.getInt(3),
+                    cursor.getInt(4), cursor.getString(5) ?: "", cursor.getString(6),
+                    parseSpans(cursor.getString(7))
                 )
-                out.getOrPut(n.v) { ArrayList() }.add(n)
+                notesByVerse.getOrPut(note.verse) { ArrayList() }.add(note)
             }
         }
-        return out
+        return notesByVerse
     }
 
-    private val titleCache = HashMap<Int, Map<Int, String>>()
+    private val titleCache = HashMap<Int, Map<Int, ChapterTitle>>()
 
-    fun chapterTitles(b: Int): Map<Int, String> = synchronized(titleCache) {
-        titleCache.getOrPut(b) {
-            val m = HashMap<Int, String>()
+    // Stored as "title\nsubtitle".
+    fun chapterTitles(book: Int): Map<Int, ChapterTitle> = synchronized(titleCache) {
+        titleCache.getOrPut(book) {
+            val titles = HashMap<Int, ChapterTitle>()
             db.rawQuery(
-                "SELECT c,titel FROM chapters WHERE b=? AND titel<>''",
-                arrayOf(b.toString())
-            ).use { while (it.moveToNext()) m[it.getInt(0)] = it.getString(1) }
-            m
+                "SELECT chapter,title FROM chapters WHERE book=? AND title<>''",
+                arrayOf(book.toString())
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val lines = cursor.getString(1).split("\n")
+                    titles[cursor.getInt(0)] =
+                        ChapterTitle(lines[0].trim(), lines.getOrElse(1) { "" }.trim())
+                }
+            }
+            titles
         }
     }
 
-    fun chapterTitle(b: Int, c: Int): String? = chapterTitles(b)[c]
+    fun chapterTitle(book: Int, chapter: Int): ChapterTitle? = chapterTitles(book)[chapter]
 
-    fun citations(b: Int, c: Int, v: Int): List<Citation> =
+    // The chapter's own title if it has one, otherwise "Genesis 1".
+    fun chapterHeading(book: Int, chapter: Int): String =
+        chapterTitle(book, chapter)?.title?.ifBlank { null } ?: "${book(book).name} $chapter"
+
+    fun citations(book: Int, chapter: Int, verse: Int): List<Citation> =
         db.rawQuery(
-            "SELECT n.b,n.c,n.v,n.n,n.cw,n.text FROM xref x JOIN notes n ON n.nid=x.nid " +
-                "WHERE x.tb=? AND x.tc=? AND (x.tv=? OR (x.tv<=? AND x.tend>=?)) " +
-                "ORDER BY n.b,n.c,n.v LIMIT 300",
-            arrayOf(b.toString(), c.toString(), v.toString(), v.toString(), v.toString())
-        ).use { cur ->
-            val l = ArrayList<Citation>()
+            "SELECT notes.book,notes.chapter,notes.verse,notes.number,notes.catchword,notes.text," +
+                "notes.spans " +
+                "FROM xref JOIN notes ON notes.id=xref.note_id " +
+                "WHERE xref.target_book=? AND xref.target_chapter=? AND " +
+                "(xref.target_verse=? OR (xref.target_verse<=? AND xref.target_end_verse>=?)) " +
+                "ORDER BY notes.book,notes.chapter,notes.verse LIMIT 300",
+            arrayOf(
+                book.toString(), chapter.toString(),
+                verse.toString(), verse.toString(), verse.toString(),
+            )
+        ).use { cursor ->
+            val list = ArrayList<Citation>()
             val seen = HashSet<Long>()
-            while (cur.moveToNext()) {
-                val key = cur.getInt(0) * 1_000_000L + cur.getInt(1) * 1000L + cur.getInt(2)
-                if (!seen.add(key * 1000 + cur.getInt(3))) continue
-                l.add(
+            while (cursor.moveToNext()) {
+                val verseKey =
+                    cursor.getInt(0) * 1_000_000L + cursor.getInt(1) * 1000L + cursor.getInt(2)
+                if (!seen.add(verseKey * 1000 + cursor.getInt(3))) continue
+                list.add(
                     Citation(
-                        cur.getInt(0), cur.getInt(1), cur.getInt(2), cur.getInt(3),
-                        cur.getString(4) ?: "", cur.getString(5)
+                        cursor.getInt(0), cursor.getInt(1), cursor.getInt(2), cursor.getInt(3),
+                        cursor.getString(4) ?: "", cursor.getString(5),
+                        parseSpans(cursor.getString(6)),
                     )
                 )
             }
-            l
+            list
         }
 
     private fun postings(table: String, term: String, prefix: Boolean): IntArray? {
         val sql: String
         val args: Array<String>
         if (prefix) {
-            sql = "SELECT docs FROM $table WHERE term>=? AND term<? ORDER BY df DESC LIMIT 60"
+            sql = "SELECT docs FROM $table WHERE term>=? AND term<? " +
+                "ORDER BY doc_count DESC LIMIT 60"
             args = arrayOf(term, term + '￿')
         } else {
             sql = "SELECT docs FROM $table WHERE term=?"
             args = arrayOf(term)
         }
-        var acc: IntArray? = null
-        db.rawQuery(sql, args).use { cur ->
-            while (cur.moveToNext()) {
-                val ids = decode(cur.getBlob(0))
-                acc = if (acc == null) ids else union(acc!!, ids)
+        var merged: IntArray? = null
+        db.rawQuery(sql, args).use { cursor ->
+            while (cursor.moveToNext()) {
+                val ids = decode(cursor.getBlob(0))
+                merged = if (merged == null) ids else union(merged!!, ids)
             }
         }
-        return acc
+        return merged
     }
 
+    // Delta-encoded varints -> ascending ids.
     private fun decode(blob: ByteArray): IntArray {
-        val out = IntArray(blob.size)
-        var n = 0
+        val ids = IntArray(blob.size)
+        var count = 0
         var i = 0
         var prev = 0
         while (i < blob.size) {
             var shift = 0
-            var value = 0
+            var delta = 0
             while (true) {
                 val byte = blob[i++].toInt() and 0xFF
-                value = value or ((byte and 0x7F) shl shift)
+                delta = delta or ((byte and 0x7F) shl shift)
                 if (byte < 0x80) break
                 shift += 7
             }
-            prev += value
-            out[n++] = prev
+            prev += delta
+            ids[count++] = prev
         }
-        return out.copyOf(n)
+        return ids.copyOf(count)
     }
 
-    private fun union(a: IntArray, b: IntArray): IntArray {
-        val out = IntArray(a.size + b.size)
-        var i = 0; var j = 0; var n = 0
-        while (i < a.size && j < b.size) {
+    private fun union(left: IntArray, right: IntArray): IntArray {
+        val result = IntArray(left.size + right.size)
+        var i = 0; var j = 0; var count = 0
+        while (i < left.size && j < right.size) {
             when {
-                a[i] < b[j] -> out[n++] = a[i++]
-                a[i] > b[j] -> out[n++] = b[j++]
-                else -> { out[n++] = a[i++]; j++ }
+                left[i] < right[j] -> result[count++] = left[i++]
+                left[i] > right[j] -> result[count++] = right[j++]
+                else -> { result[count++] = left[i++]; j++ }
             }
         }
-        while (i < a.size) out[n++] = a[i++]
-        while (j < b.size) out[n++] = b[j++]
-        return out.copyOf(n)
+        while (i < left.size) result[count++] = left[i++]
+        while (j < right.size) result[count++] = right[j++]
+        return result.copyOf(count)
     }
 
-    private fun intersect(a: IntArray, b: IntArray): IntArray {
-        val out = IntArray(minOf(a.size, b.size))
-        var i = 0; var j = 0; var n = 0
-        while (i < a.size && j < b.size) {
+    private fun intersect(left: IntArray, right: IntArray): IntArray {
+        val result = IntArray(minOf(left.size, right.size))
+        var i = 0; var j = 0; var count = 0
+        while (i < left.size && j < right.size) {
             when {
-                a[i] < b[j] -> i++
-                a[i] > b[j] -> j++
-                else -> { out[n++] = a[i]; i++; j++ }
+                left[i] < right[j] -> i++
+                left[i] > right[j] -> j++
+                else -> { result[count++] = left[i]; i++; j++ }
             }
         }
-        return out.copyOf(n)
+        return result.copyOf(count)
     }
 
     // The last word counts as a prefix, so results keep up with typing.
@@ -317,46 +345,51 @@ object Bible {
         query: String, inNotes: Boolean, limit: Int = 400,
         bookFilter: Int = 0, testament: String = "",
     ): List<Hit> {
-        val q = normalize(query).trim()
-        if (q.length < 2) return emptyList()
-        val terms = WORDS.findAll(q).map { it.value }.toList()
+        val normalizedQuery = normalize(query).trim()
+        if (normalizedQuery.length < 2) return emptyList()
+        val terms = WORD_PATTERN.findAll(normalizedQuery).map { it.value }.toList()
         if (terms.isEmpty()) return emptyList()
-        val openEnd = !q.last().isWhitespace()
-        val table = if (inNotes) "widx_n" else "widx_v"
+        val openEnd = !normalizedQuery.last().isWhitespace()
+        val table = if (inNotes) "word_index_notes" else "word_index_verses"
 
         var ids: IntArray? = null
-        terms.forEachIndexed { i, t ->
-            val prefix = openEnd && i == terms.lastIndex && t.length >= 2
-            val p = postings(table, t, prefix) ?: return emptyList()
-            ids = if (ids == null) p else intersect(ids!!, p)
+        terms.forEachIndexed { i, term ->
+            val prefix = openEnd && i == terms.lastIndex && term.length >= 2
+            val termIds = postings(table, term, prefix) ?: return emptyList()
+            ids = if (ids == null) termIds else intersect(ids!!, termIds)
             if (ids!!.isEmpty()) return emptyList()
         }
-        val all = ids ?: return emptyList()
+        val allIds = ids ?: return emptyList()
 
         val phrase = terms.joinToString(" ")
         val wantPhrase = terms.size > 1
 
-        val hits = ArrayList<Hit>(minOf(all.size, limit))
+        val hits = ArrayList<Hit>(minOf(allIds.size, limit))
         val extra = ArrayList<Hit>()
-        val chunk = 900
-        var index = 0
-        while (index < all.size && hits.size < limit) {
-            val slice = all.copyOfRange(index, minOf(index + chunk, all.size))
-            index += chunk
+        val chunkSize = 900
+        var chunkStart = 0
+        while (chunkStart < allIds.size && hits.size < limit) {
+            val slice = allIds.copyOfRange(chunkStart, minOf(chunkStart + chunkSize, allIds.size))
+            chunkStart += chunkSize
             val inClause = slice.joinToString(",")
             val sql = if (inNotes)
-                "SELECT b,c,v,text,n,cw FROM notes WHERE nid IN ($inClause) ORDER BY nid"
+                "SELECT book,chapter,verse,text,spans,number,catchword FROM notes " +
+                    "WHERE id IN ($inClause) ORDER BY id"
             else
-                "SELECT b,c,v,text FROM verses WHERE vid IN ($inClause) ORDER BY vid"
-            db.rawQuery(sql, null).use { cur ->
-                while (cur.moveToNext()) {
-                    val b = cur.getInt(0)
-                    if (bookFilter != 0 && b != bookFilter) continue
-                    if (testament.isNotEmpty() && book(b).testament != testament) continue
-                    val text = cur.getString(3)
+                "SELECT book,chapter,verse,text,spans FROM verses WHERE id IN ($inClause) ORDER BY id"
+            db.rawQuery(sql, null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val bookNumber = cursor.getInt(0)
+                    if (bookFilter != 0 && bookNumber != bookFilter) continue
+                    if (testament.isNotEmpty() && book(bookNumber).testament != testament) continue
+                    val text = cursor.getString(3)
+                    val spans = parseSpans(cursor.getString(4))
                     val hit = if (inNotes)
-                        Hit(b, cur.getInt(1), cur.getInt(2), text, cur.getInt(4), cur.getString(5) ?: "")
-                    else Hit(b, cur.getInt(1), cur.getInt(2), text)
+                        Hit(
+                            bookNumber, cursor.getInt(1), cursor.getInt(2), text, spans,
+                            cursor.getInt(5), cursor.getString(6) ?: "",
+                        )
+                    else Hit(bookNumber, cursor.getInt(1), cursor.getInt(2), text, spans)
                     if (wantPhrase && !normalize(text).contains(phrase)) {
                         if (extra.size < limit) extra.add(hit)
                     } else if (hits.size < limit) hits.add(hit)
@@ -367,42 +400,47 @@ object Bible {
         return hits
     }
 
-    private fun compact(s: String) = normalize(s).replace(NON_ALNUM, "")
+    private fun compact(text: String) = normalize(text).replace(NON_ALNUM, "")
 
     fun bookPart(input: String): String {
-        val s = normalize(input).trim()
-        val lastLetter = s.indexOfLast { it in 'a'..'z' }
-        return if (lastLetter < 0) "" else s.substring(0, lastLetter + 1).trim()
+        val normalized = normalize(input).trim()
+        val lastLetter = normalized.indexOfLast { it in 'a'..'z' }
+        return if (lastLetter < 0) "" else normalized.substring(0, lastLetter + 1).trim()
     }
 
     fun bookCandidates(input: String): List<Book> {
-        val q = compact(input)
-        if (q.isEmpty()) return emptyList()
-        fun mainNames(bk: Book) = listOf(compact(bk.name), compact(bk.abbr), compact(bk.code))
-        books.firstOrNull { bk -> mainNames(bk).any { it == q } }?.let { return listOf(it) }
-        val prefixMatches = books.filter { bk -> mainNames(bk).any { it.startsWith(q) } }
+        val wanted = compact(input)
+        if (wanted.isEmpty()) return emptyList()
+        fun mainNames(book: Book) =
+            listOf(compact(book.name), compact(book.abbreviation), compact(book.code))
+        books.firstOrNull { book -> mainNames(book).any { it == wanted } }?.let { return listOf(it) }
+        val prefixMatches = books.filter { book -> mainNames(book).any { it.startsWith(wanted) } }
         if (prefixMatches.isNotEmpty()) return prefixMatches
-        if (q.length >= 2) {
-            val viaAlt = books.filter { bk ->
-                bk.alt.split(' ').any { w -> w.length >= 2 && compact(w).startsWith(q) }
+        if (wanted.length >= 2) {
+            val viaAliases = books.filter { book ->
+                book.aliases.split(' ').any { alias ->
+                    alias.length >= 2 && compact(alias).startsWith(wanted)
+                }
             }
-            if (viaAlt.isNotEmpty()) return viaAlt
+            if (viaAliases.isNotEmpty()) return viaAliases
         }
-        return books.filter { bk -> mainNames(bk).any { it.length >= 3 && q.startsWith(it) } }
+        return books.filter { book ->
+            mainNames(book).any { it.length >= 3 && wanted.startsWith(it) }
+        }
     }
 
     fun parseReference(input: String): Triple<Int, Int, Int>? {
-        val s = normalize(input).trim()
-        if (s.isEmpty()) return null
-        val lastLetter = s.indexOfLast { it in 'a'..'z' }
+        val normalized = normalize(input).trim()
+        if (normalized.isEmpty()) return null
+        val lastLetter = normalized.indexOfLast { it in 'a'..'z' }
         if (lastLetter < 0) return null
-        val name = s.substring(0, lastLetter + 1)
-        val rest = s.substring(lastLetter + 1)
+        val name = normalized.substring(0, lastLetter + 1)
+        val rest = normalized.substring(lastLetter + 1)
         val numbers = Regex("\\d+").findAll(rest).map { it.value.toInt() }.toList()
-        val bk = bookCandidates(name).minByOrNull { it.name.length } ?: return null
-        val c = (numbers.getOrNull(0) ?: 1).coerceIn(1, bk.chapters)
-        val v = numbers.getOrNull(1) ?: 0
-        return Triple(bk.b, c, v)
+        val bookInfo = bookCandidates(name).minByOrNull { it.name.length } ?: return null
+        val chapter = (numbers.getOrNull(0) ?: 1).coerceIn(1, bookInfo.chapterCount)
+        val verse = numbers.getOrNull(1) ?: 0
+        return Triple(bookInfo.number, chapter, verse)
     }
 }
 

@@ -21,12 +21,12 @@ enum class Theme(val key: String, val label: String) {
     }
 }
 
-class Bookmark(val b: Int, val c: Int, val v: Int, val time: Long) {
-    val key get() = "$b.$c.$v"
-}
+class Bookmark(val book: Int, val chapter: Int, val verse: Int, val time: Long)
+
+data class VisitedChapter(val book: Int, val chapter: Int)
 
 object Prefs {
-    private lateinit var sp: SharedPreferences
+    private lateinit var prefs: SharedPreferences
 
     var theme by mutableStateOf(Theme.SYSTEM)
         private set
@@ -51,81 +51,100 @@ object Prefs {
     var verse by mutableIntStateOf(0)
 
     val bookmarks = mutableStateListOf<Bookmark>()
-    val history = mutableStateListOf<String>()
+    val history = mutableStateListOf<VisitedChapter>()
 
-    fun load(ctx: Context) {
-        sp = ctx.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
-        theme = Theme.fromKey(sp.getString("thema", Theme.SYSTEM.key)) ?: Theme.SYSTEM
-        accent = Accent.fromKey(sp.getString("accent", Accent.GOLD.key)) ?: Accent.GOLD
-        textSize = sp.getInt("grootte", 19)
-        lineHeight = sp.getInt("regel", 150)
-        serif = sp.getBoolean("schreef", true)
-        showNoteMarkers = sp.getBoolean("markers", true)
-        compactVerses = sp.getBoolean("doorlopend", false)
-        keepScreenOn = sp.getBoolean("schermaan", false)
-        swipeNavigation = sp.getBoolean("vegen", false)
-        book = sp.getInt("boek", 1)
-        chapter = sp.getInt("hoofdstuk", 1)
-        verse = sp.getInt("vers", 0)
+    fun load(context: Context) {
+        prefs = context.getSharedPreferences("statenbijbel", Context.MODE_PRIVATE)
+        theme = Theme.fromKey(prefs.getString("thema", Theme.SYSTEM.key)) ?: Theme.SYSTEM
+        accent = Accent.fromKey(prefs.getString("accent", Accent.GOLD.key)) ?: Accent.GOLD
+        textSize = prefs.getInt("grootte", 19)
+        lineHeight = prefs.getInt("regel", 150)
+        serif = prefs.getBoolean("schreef", true)
+        showNoteMarkers = prefs.getBoolean("markers", true)
+        compactVerses = prefs.getBoolean("doorlopend", false)
+        keepScreenOn = prefs.getBoolean("schermaan", false)
+        swipeNavigation = prefs.getBoolean("vegen", false)
+        book = prefs.getInt("boek", 1)
+        chapter = prefs.getInt("hoofdstuk", 1)
+        verse = prefs.getInt("vers", 0)
 
         bookmarks.clear()
-        sp.getString("bladwijzers", "")!!.split(';').forEach { row ->
-            val d = row.split(',')
-            if (d.size == 4) {
+        // "book,chapter,verse,time;..."
+        prefs.getString("bladwijzers", "")!!.split(';').forEach { row ->
+            val fields = row.split(',')
+            if (fields.size == 4) {
                 bookmarks.add(
-                    Bookmark(d[0].toInt(), d[1].toInt(), d[2].toInt(), d[3].toLong())
+                    Bookmark(
+                        fields[0].toInt(), fields[1].toInt(), fields[2].toInt(),
+                        fields[3].toLong(),
+                    )
                 )
             }
         }
-        if (sp.contains("markeringen")) edit { remove("markeringen") }
+        if (prefs.contains("markeringen")) edit { remove("markeringen") }
         history.clear()
-        sp.getString("geschiedenis", "")!!.split(';').filter { it.isNotBlank() }
-            .forEach { history.add(it) }
+        // "book.chapter;..."
+        prefs.getString("geschiedenis", "")!!.split(';').forEach { entry ->
+            val fields = entry.split('.')
+            if (fields.size == 2) history.add(VisitedChapter(fields[0].toInt(), fields[1].toInt()))
+        }
     }
 
-    private fun edit(f: SharedPreferences.Editor.() -> Unit) {
-        sp.edit().apply(f).apply()
+    private fun edit(changes: SharedPreferences.Editor.() -> Unit) {
+        prefs.edit().apply(changes).apply()
     }
 
-    fun saveTheme(t: Theme) { theme = t; edit { putString("thema", t.key) } }
-    fun saveAccent(a: Accent) { accent = a; edit { putString("accent", a.key) } }
-    fun saveTextSize(v: Int) {
-        textSize = v.coerceIn(13, 34); edit { putInt("grootte", textSize) }
+    fun saveTheme(newTheme: Theme) { theme = newTheme; edit { putString("thema", newTheme.key) } }
+    fun saveAccent(newAccent: Accent) {
+        accent = newAccent; edit { putString("accent", newAccent.key) }
     }
-    fun saveLineHeight(v: Int) {
-        lineHeight = v.coerceIn(110, 220); edit { putInt("regel", lineHeight) }
+    fun saveTextSize(size: Int) {
+        textSize = size.coerceIn(13, 34); edit { putInt("grootte", textSize) }
     }
-    fun saveSerif(v: Boolean) { serif = v; edit { putBoolean("schreef", v) } }
-    fun saveNoteMarkers(v: Boolean) { showNoteMarkers = v; edit { putBoolean("markers", v) } }
-    fun saveCompactVerses(v: Boolean) { compactVerses = v; edit { putBoolean("doorlopend", v) } }
-    fun saveKeepScreenOn(v: Boolean) { keepScreenOn = v; edit { putBoolean("schermaan", v) } }
-    fun saveSwipeNavigation(v: Boolean) { swipeNavigation = v; edit { putBoolean("vegen", v) } }
+    fun saveLineHeight(percent: Int) {
+        lineHeight = percent.coerceIn(110, 220); edit { putInt("regel", lineHeight) }
+    }
+    fun saveSerif(enabled: Boolean) { serif = enabled; edit { putBoolean("schreef", enabled) } }
+    fun saveNoteMarkers(enabled: Boolean) {
+        showNoteMarkers = enabled; edit { putBoolean("markers", enabled) }
+    }
+    fun saveCompactVerses(enabled: Boolean) {
+        compactVerses = enabled; edit { putBoolean("doorlopend", enabled) }
+    }
+    fun saveKeepScreenOn(enabled: Boolean) {
+        keepScreenOn = enabled; edit { putBoolean("schermaan", enabled) }
+    }
+    fun saveSwipeNavigation(enabled: Boolean) {
+        swipeNavigation = enabled; edit { putBoolean("vegen", enabled) }
+    }
 
-    fun savePosition(b: Int, c: Int, v: Int) {
-        book = b; chapter = c; verse = v
-        edit { putInt("boek", b); putInt("hoofdstuk", c); putInt("vers", v) }
+    fun savePosition(book: Int, chapter: Int, verse: Int) {
+        this.book = book; this.chapter = chapter; this.verse = verse
+        edit { putInt("boek", book); putInt("hoofdstuk", chapter); putInt("vers", verse) }
     }
 
-    fun addToHistory(b: Int, c: Int) {
-        val key = "$b.$c"
-        history.remove(key)
-        history.add(0, key)
+    fun addToHistory(book: Int, chapter: Int) {
+        val visit = VisitedChapter(book, chapter)
+        history.remove(visit)
+        history.add(0, visit)
         while (history.size > 40) history.removeAt(history.size - 1)
-        edit { putString("geschiedenis", history.joinToString(";")) }
+        edit { putString("geschiedenis", history.joinToString(";") { "${it.book}.${it.chapter}" }) }
     }
 
-    fun isBookmarked(b: Int, c: Int, v: Int) =
-        bookmarks.any { it.b == b && it.c == c && it.v == v }
+    fun isBookmarked(book: Int, chapter: Int, verse: Int) =
+        bookmarks.any { it.book == book && it.chapter == chapter && it.verse == verse }
 
-    fun toggleBookmark(b: Int, c: Int, v: Int) {
-        val existing = bookmarks.indexOfFirst { it.b == b && it.c == c && it.v == v }
+    fun toggleBookmark(book: Int, chapter: Int, verse: Int) {
+        val existing = bookmarks.indexOfFirst {
+            it.book == book && it.chapter == chapter && it.verse == verse
+        }
         if (existing >= 0) bookmarks.removeAt(existing)
-        else bookmarks.add(0, Bookmark(b, c, v, System.currentTimeMillis()))
+        else bookmarks.add(0, Bookmark(book, chapter, verse, System.currentTimeMillis()))
         saveBookmarks()
     }
 
     private fun saveBookmarks() = edit {
         putString("bladwijzers",
-            bookmarks.joinToString(";") { "${it.b},${it.c},${it.v},${it.time}" })
+            bookmarks.joinToString(";") { "${it.book},${it.chapter},${it.verse},${it.time}" })
     }
 }

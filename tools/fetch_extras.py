@@ -18,9 +18,9 @@ import urllib.request
 from html import unescape
 
 BASE_URL = "https://bijbel-statenvertaling.com"
-UA = ("Mozilla/5.0 (X11; Linux x86_64) StatenBijbel-offline/1.0 "
-      "(persoonlijk gebruik; publiek-domeinteksten)")
-CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cache-extras")
+USER_AGENT = ("Mozilla/5.0 (X11; Linux x86_64) StatenBijbel-offline/1.0 "
+              "(persoonlijk gebruik; publiek-domeinteksten)")
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cache-extras")
 PAUSE = 0.6
 
 HYMNS = [
@@ -86,126 +86,126 @@ PRAYERS = [
 def pages():
     """All pages to fetch: (group, key, path)."""
     out = []
-    for n in range(1, 151):
-        out.append(("psalm", str(n), f"/1773/psalm/{n}/"))
-    for i, s in enumerate(HYMNS, 1):
-        out.append(("gezang", str(i), f"/1773/gezang/{s}/"))
-    for n in range(1, 53):
-        out.append(("catechismus", str(n), f"/catechismus/zondag/{n}/"))
-    for n in range(1, 38):
-        out.append(("ngb", str(n), f"/nederlandse-geloofsbelijdenis/artikel/{n}/"))
-    for i, s in enumerate(CANONS, 1):
-        out.append(("leerregels", str(i), f"/dordtse-leerregels/{s}/"))
-    for i, s in enumerate(CREEDS, 1):
-        out.append(("belijdenis", str(i), f"/belijdenis/{s}/"))
-    for i, s in enumerate(FORMS, 1):
-        out.append(("formulier", str(i), f"/liturgische-formulieren/{s}/"))
-    for i, s in enumerate(PRAYERS, 1):
-        out.append(("gebed", str(i), f"/christelijke-gebeden/{s}/"))
+    for number in range(1, 151):
+        out.append(("psalm", str(number), f"/1773/psalm/{number}/"))
+    for i, slug in enumerate(HYMNS, 1):
+        out.append(("gezang", str(i), f"/1773/gezang/{slug}/"))
+    for number in range(1, 53):
+        out.append(("catechismus", str(number), f"/catechismus/zondag/{number}/"))
+    for number in range(1, 38):
+        out.append(("ngb", str(number), f"/nederlandse-geloofsbelijdenis/artikel/{number}/"))
+    for i, slug in enumerate(CANONS, 1):
+        out.append(("leerregels", str(i), f"/dordtse-leerregels/{slug}/"))
+    for i, slug in enumerate(CREEDS, 1):
+        out.append(("belijdenis", str(i), f"/belijdenis/{slug}/"))
+    for i, slug in enumerate(FORMS, 1):
+        out.append(("formulier", str(i), f"/liturgische-formulieren/{slug}/"))
+    for i, slug in enumerate(PRAYERS, 1):
+        out.append(("gebed", str(i), f"/christelijke-gebeden/{slug}/"))
     return out
 
 
 def cache_file(group, key):
-    return os.path.join(CACHE, f"{group}-{key}.html.gz")
+    return os.path.join(CACHE_DIR, f"{group}-{key}.html.gz")
 
 
 def fetch():
-    os.makedirs(CACHE, exist_ok=True)
-    todo = pages()
-    new = 0
-    for i, (group, key, path) in enumerate(todo, 1):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    all_pages = pages()
+    new_count = 0
+    for i, (group, key, path) in enumerate(all_pages, 1):
         dest = cache_file(group, key)
         if os.path.exists(dest) and os.path.getsize(dest) > 5000:
             continue
-        req = urllib.request.Request(
+        request = urllib.request.Request(
             BASE_URL + path,
-            headers={"User-Agent": UA, "Accept-Encoding": "gzip",
+            headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip",
                      "Accept-Language": "nl"},
         )
         for attempt in range(3):
             try:
-                with urllib.request.urlopen(req, timeout=40) as r:
-                    raw = r.read()
-                    if r.headers.get("Content-Encoding") == "gzip":
+                with urllib.request.urlopen(request, timeout=40) as response:
+                    raw = response.read()
+                    if response.headers.get("Content-Encoding") == "gzip":
                         raw = gzip.decompress(raw)
                 break
-            except (urllib.error.URLError, OSError) as e:
+            except (urllib.error.URLError, OSError) as error:
                 if attempt == 2:
-                    print(f"  ! failed {path}: {e}")
+                    print(f"  ! failed {path}: {error}")
                     raw = None
                 else:
                     time.sleep(2 * (attempt + 1))
         if not raw:
             continue
-        with gzip.open(dest, "wb") as f:
-            f.write(raw)
-        new += 1
-        if new % 25 == 0:
-            print(f"  {i}/{len(todo)} ({group})")
+        with gzip.open(dest, "wb") as file:
+            file.write(raw)
+        new_count += 1
+        if new_count % 25 == 0:
+            print(f"  {i}/{len(all_pages)} ({group})")
         time.sleep(PAUSE)
-    print(f"Done: {new} new pages, {len(todo)} total.")
+    print(f"Done: {new_count} new pages, {len(all_pages)} total.")
 
 
 SCRIPT_STYLE = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
 
 
 def read_cached(group, key):
-    p = cache_file(group, key)
-    if not os.path.exists(p):
+    path = cache_file(group, key)
+    if not os.path.exists(path):
         return None
-    with gzip.open(p, "rb") as f:
-        return f.read().decode("utf-8", "replace")
+    with gzip.open(path, "rb") as file:
+        return file.read().decode("utf-8", "replace")
 
 
-def content_block(s):
+def content_block(html):
     """The part of the page holding the actual text."""
-    m = re.search(r'<div class="[^"]*publication-content[^"]*"[^>]*>', s)
-    if not m:
+    match = re.search(r'<div class="[^"]*publication-content[^"]*"[^>]*>', html)
+    if not match:
         return ""
-    start = m.end()
-    end = s.find('<div class="col', start)
-    tail = s.find("</section>", start)
-    if tail != -1 and (end == -1 or tail < end):
-        end = tail
-    return s[start:end if end != -1 else len(s)]
+    start = match.end()
+    end = html.find('<div class="col', start)
+    section_end = html.find("</section>", start)
+    if section_end != -1 and (end == -1 or section_end < end):
+        end = section_end
+    return html[start:end if end != -1 else len(html)]
 
 
-def title_of(s):
-    m = re.search(r'<h1 class="[^"]*chapter-title[^"]*">(.*?)</h1>', s, re.S)
-    if not m:
-        m = re.search(r'<h1 class="publication-title">(.*?)</h1>', s, re.S)
-    if not m:
+def title_of(html):
+    match = re.search(r'<h1 class="[^"]*chapter-title[^"]*">(.*?)</h1>', html, re.S)
+    if not match:
+        match = re.search(r'<h1 class="publication-title">(.*?)</h1>', html, re.S)
+    if not match:
         return ""
-    raw = re.sub(r"</span>\s*<span", "</span>\n<span", m.group(1))
+    raw = re.sub(r"</span>\s*<span", "</span>\n<span", match.group(1))
     return flatten(raw)
 
 
-def flatten(h):
+def flatten(fragment):
     """Only <br> is a line break, the HTML indentation is not."""
-    h = re.sub(r"<br\s*/?>", "\x02", h)
-    h = re.sub(r"<[^>]+>", "", h)
-    h = unescape(h)
-    h = re.sub(r"[ \t\r\n]+", " ", h)
-    h = h.replace("\x02", "\n")
-    h = re.sub(r" *\n *", "\n", h)
-    return h.strip()
+    fragment = re.sub(r"<br\s*/?>", "\x02", fragment)
+    fragment = re.sub(r"<[^>]+>", "", fragment)
+    fragment = unescape(fragment)
+    fragment = re.sub(r"[ \t\r\n]+", " ", fragment)
+    fragment = fragment.replace("\x02", "\n")
+    fragment = re.sub(r" *\n *", "\n", fragment)
+    return fragment.strip()
 
 
-def refs_of(s):
+def refs_of(html):
     """The proof texts: letter -> [(label, book slug, chapter, verse)]."""
     out = {}
-    for m in re.finditer(
+    for match in re.finditer(
         r"<span class='reference-number'>([a-z]+)</span>(.*?)(?=<span class='reference-number'>|$)",
-        s, re.S,
+        html, re.S,
     ):
-        letter = m.group(1)
+        letter = match.group(1)
         places = []
-        for a in re.finditer(
-            r"<a href='/statenvertaling/([^/]+)/(\d+)/#(\d+)'[^>]*>(.*?)</a>", m.group(2), re.S
+        for link in re.finditer(
+            r"<a href='/statenvertaling/([^/]+)/(\d+)/#(\d+)'[^>]*>(.*?)</a>", match.group(2), re.S
         ):
             places.append({
-                "boek": a.group(1), "h": int(a.group(2)),
-                "v": int(a.group(3)), "label": flatten(a.group(4)),
+                "boek": link.group(1), "h": int(link.group(2)),
+                "v": int(link.group(3)), "label": flatten(link.group(4)),
             })
         if places:
             out.setdefault(letter, []).extend(places)
@@ -214,44 +214,44 @@ def refs_of(s):
 
 def blocks_of(content):
     """The numbered text blocks (verses, questions, articles)."""
-    positions = [(m.start(), int(m.group(1)))
-                 for m in re.finditer(r'<div class="[^"]*\bverse verse-(\d+)\b[^"]*"', content)]
+    positions = [(match.start(), int(match.group(1)))
+                 for match in re.finditer(r'<div class="[^"]*\bverse verse-(\d+)\b[^"]*"', content)]
     out = []
-    for i, (pos, nr) in enumerate(positions):
+    for i, (position, number) in enumerate(positions):
         end = positions[i + 1][0] if i + 1 < len(positions) else len(content)
-        piece = content[pos:end]
+        piece = content[position:end]
         piece = re.sub(r'<span class="verse-number">.*?</span>', "", piece, count=1, flags=re.S)
-        out.append((nr, piece))
+        out.append((number, piece))
     return out
 
 
 def parse_page(group, key):
-    s = read_cached(group, key)
-    if not s:
+    html = read_cached(group, key)
+    if not html:
         return None
-    s = SCRIPT_STYLE.sub("", s)
-    content = content_block(s)
-    title = title_of(s)
-    refs = refs_of(s)
+    html = SCRIPT_STYLE.sub("", html)
+    content = content_block(html)
+    title = title_of(html)
+    refs = refs_of(html)
     blocks = blocks_of(content)
     if not blocks:
         # running text: paragraphs from <p>, or else from <div class="text">
-        paragraphs = [flatten(m.group(1)) for m in
+        paragraphs = [flatten(match.group(1)) for match in
                       re.finditer(r"<p[^>]*>(.*?)</p>", content, re.S)]
-        if not any(len(a) > 1 for a in paragraphs):
+        if not any(len(paragraph) > 1 for paragraph in paragraphs):
             raw = "\n\n".join(
-                m.group(1) for m in
+                match.group(1) for match in
                 re.finditer(r'<div class="text[^"]*"[^>]*>(.*?)</div>', content, re.S)
             )
             if not raw.strip():
                 raw = content
-            paragraphs = [a.strip() for a in re.split(r"\n\s*\n", flatten(raw))]
-        paragraphs = [a for a in paragraphs if len(a) > 1]
-        blocks = [(i, a) for i, a in enumerate(paragraphs, 1)]
-        rows = [{"n": n, "tekst": t} for n, t in blocks]
+            paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", flatten(raw))]
+        paragraphs = [paragraph for paragraph in paragraphs if len(paragraph) > 1]
+        blocks = [(i, paragraph) for i, paragraph in enumerate(paragraphs, 1)]
+        rows = [{"n": number, "tekst": text} for number, text in blocks]
     else:
         rows = []
-        for n, raw in blocks:
+        for number, raw in blocks:
             # The letters restart at a for each question.
             cut = raw.find('<div class="verse-references"')
             own_refs = refs_of(raw[cut:]) if cut != -1 else {}
@@ -259,7 +259,7 @@ def parse_page(group, key):
                 raw = raw[:cut]
             # Sentinel, so the position of the letter survives the stripping.
             marked = re.sub(r'<span class="verwijzing">\s*([a-z]+)\s*</span>',
-                            lambda m: "\x01" + m.group(1) + "\x01", raw)
+                            lambda match: "\x01" + match.group(1) + "\x01", raw)
             text = flatten(marked)
             # Clean up whitespace first, otherwise the marks shift.
             text = re.sub(r"[ \t]+(\x01[a-z]+\x01)", r"\1", text)
@@ -267,12 +267,12 @@ def parse_page(group, key):
             text = re.sub(r"[ \t]{2,}", " ", text)
             marks = []
             while True:
-                m = re.search(r"\x01([a-z]+)\x01", text)
-                if not m:
+                match = re.search(r"\x01([a-z]+)\x01", text)
+                if not match:
                     break
-                marks.append({"p": m.start(), "letter": m.group(1)})
-                text = text[:m.start()] + text[m.end():]
-            row = {"n": n, "tekst": text}
+                marks.append({"p": match.start(), "letter": match.group(1)})
+                text = text[:match.start()] + text[match.end():]
+            row = {"n": number, "tekst": text}
             if marks:
                 row["merken"] = marks
             if own_refs:
@@ -285,28 +285,30 @@ def parse_all():
     out = {}
     blocks_total = 0
     for group, key, path in pages():
-        p = parse_page(group, key)
-        if not p or not p["rijen"]:
+        page = parse_page(group, key)
+        if not page or not page["rijen"]:
             print(f"  ! empty: {group}/{key} ({path})")
             continue
-        out.setdefault(group, {})[key] = p
-        blocks_total += len(p["rijen"])
-    dest = os.path.join(os.path.dirname(CACHE), "extras.json")
-    with open(dest, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False)
-    print(f"\nParsed: {sum(len(v) for v in out.values())} pages, {blocks_total} blocks")
-    for g, v in out.items():
-        blk = sum(len(p["rijen"]) for p in v.values())
-        refs = sum(len(p["verwijzingen"]) for p in v.values())
-        print(f"  {g:14s} {len(v):4d} pages  {blk:5d} blocks  {refs:5d} ref letters")
+        out.setdefault(group, {})[key] = page
+        blocks_total += len(page["rijen"])
+    dest = os.path.join(os.path.dirname(CACHE_DIR), "extras.json")
+    with open(dest, "w", encoding="utf-8") as file:
+        json.dump(out, file, ensure_ascii=False)
+    print(f"\nParsed: {sum(len(group_pages) for group_pages in out.values())} pages, "
+          f"{blocks_total} blocks")
+    for group, group_pages in out.items():
+        block_count = sum(len(page["rijen"]) for page in group_pages.values())
+        ref_letters = sum(len(page["verwijzingen"]) for page in group_pages.values())
+        print(f"  {group:14s} {len(group_pages):4d} pages  {block_count:5d} blocks  "
+              f"{ref_letters:5d} ref letters")
     print(f"-> {dest}")
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "fetch"
-    if cmd == "fetch":
+    command = sys.argv[1] if len(sys.argv) > 1 else "fetch"
+    if command == "fetch":
         fetch()
-    elif cmd == "parse":
+    elif command == "parse":
         parse_all()
     else:
         print(__doc__)
