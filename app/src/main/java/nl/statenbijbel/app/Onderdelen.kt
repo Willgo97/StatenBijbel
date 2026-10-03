@@ -1,6 +1,5 @@
 package nl.statenbijbel.app
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,7 +8,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,25 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -58,8 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -72,7 +56,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Snelle knoppenbalk voor lettergrootte, thema en weergave. */
 @Composable
 fun Leesbalk() {
     val k = LocalLeeskleuren.current
@@ -138,10 +121,6 @@ fun Chip(label: String, actief: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * De kanttekeningen van één vers, ingevouwen tussen de verzen zelf —
- * zoals in een uitgave met kanttekeningen in de kolom naast de tekst.
- */
 @Composable
 fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
     val k = LocalLeeskleuren.current
@@ -159,84 +138,84 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
             .clip(RoundedCornerShape(10.dp))
             .background(if (k.donker) Color(0x14FFFFFF) else Color(0x0F8A6431)),
     ) {
-    Column(Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)) {
-        noten.forEachIndexed { i, noot ->
-            val uitgelicht = st.kantN == noot.n
-            val tekst = remember(noot.nid, k.donker) { nootTekst(noot, opmaak) }
-            var layout by remember(noot.nid) { mutableStateOf<TextLayoutResult?>(null) }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 3.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(
-                        if (uitgelicht) k.accent.copy(alpha = if (k.donker) 0.22f else 0.15f)
-                        else Color.Transparent
-                    )
-                    .padding(horizontal = 7.dp, vertical = 5.dp),
-            ) {
-                Text(
-                    buildKopregel(noot, k),
-                    fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
-                    fontSize = (Prefs.tekstGrootte - 3).sp,
-                    lineHeight = ((Prefs.tekstGrootte - 3) * 1.35f).sp,
-                    color = k.inkt,
-                    // Ruimte voor het sluitkruisje rechtsboven.
-                    modifier = if (i == 0) Modifier.padding(end = 18.dp) else Modifier,
-                )
-                Text(
-                    text = tekst,
-                    style = TextStyle(
-                        fontFamily = if (Prefs.schreef) FontFamily.Serif
-                        else FontFamily.SansSerif,
+        Column(Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)) {
+            noten.forEachIndexed { i, noot ->
+                val uitgelicht = st.kantN == noot.n
+                val tekst = remember(noot.nid, k.donker) { nootTekst(noot, opmaak) }
+                var layout by remember(noot.nid) { mutableStateOf<TextLayoutResult?>(null) }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(
+                            if (uitgelicht) k.accent.copy(alpha = if (k.donker) 0.22f else 0.15f)
+                            else Color.Transparent
+                        )
+                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        buildKopregel(noot, k),
+                        fontFamily = if (Prefs.schreef) FontFamily.Serif else FontFamily.SansSerif,
                         fontSize = (Prefs.tekstGrootte - 3).sp,
-                        lineHeight = ((Prefs.tekstGrootte - 3) * Prefs.regelHoogte / 100f).sp,
+                        lineHeight = ((Prefs.tekstGrootte - 3) * 1.35f).sp,
                         color = k.inkt,
-                    ),
-                    modifier = Modifier.pointerInput(tekst) {
-                        detectTapGestures { pos ->
-                            val lr = layout ?: return@detectTapGestures
-                            val off = lr.getOffsetForPosition(pos)
-                            val ann = tekst.getStringAnnotations(TAG_REF, off, off)
-                                .firstOrNull()
-                            if (ann != null) {
-                                val r = Ref.parse(ann.item)
-                                if (kijkBij == noot.n && kijk?.let {
-                                        it.b == r?.b && it.c == r.c && it.v == r.v
-                                    } == true) {
-                                    kijk = null
-                                } else {
-                                    kijk = r
-                                    kijkBij = noot.n
+                        // ruimte voor het sluitkruisje
+                        modifier = if (i == 0) Modifier.padding(end = 18.dp) else Modifier,
+                    )
+                    Text(
+                        text = tekst,
+                        style = TextStyle(
+                            fontFamily = if (Prefs.schreef) FontFamily.Serif
+                            else FontFamily.SansSerif,
+                            fontSize = (Prefs.tekstGrootte - 3).sp,
+                            lineHeight = ((Prefs.tekstGrootte - 3) * Prefs.regelHoogte / 100f).sp,
+                            color = k.inkt,
+                        ),
+                        modifier = Modifier.pointerInput(tekst) {
+                            detectTapGestures { pos ->
+                                val lr = layout ?: return@detectTapGestures
+                                val off = lr.getOffsetForPosition(pos)
+                                val ann = tekst.getStringAnnotations(TAG_REF, off, off)
+                                    .firstOrNull()
+                                if (ann != null) {
+                                    val r = Ref.parse(ann.item)
+                                    if (kijkBij == noot.n && kijk?.let {
+                                            it.b == r?.b && it.c == r.c && it.v == r.v
+                                        } == true) {
+                                        kijk = null
+                                    } else {
+                                        kijk = r
+                                        kijkBij = noot.n
+                                    }
                                 }
                             }
-                        }
-                    },
-                    onTextLayout = { layout = it },
-                )
-                if (kijkBij == noot.n) {
-                    kijk?.let { r -> VersKijker(st, r) { kijk = null } }
+                        },
+                        onTextLayout = { layout = it },
+                    )
+                    if (kijkBij == noot.n) {
+                        kijk?.let { VersKijker(st, it) }
+                    }
+                }
+            }
+            if (aantalVerw > 0) {
+                Row(
+                    Modifier
+                        .padding(top = 4.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .clickable { st.verwijzingenVoor = Triple(b, c, v) }
+                        .padding(horizontal = 7.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Link, null, tint = k.accent, modifier = Modifier.size(16.dp))
+                    Text(
+                        if (aantalVerw == 1) "  1 verwijzing hierheen"
+                        else "  $aantalVerw verwijzingen hierheen",
+                        fontSize = 13.sp, color = k.accent,
+                    )
                 }
             }
         }
-        if (aantalVerw > 0) {
-            Row(
-                Modifier
-                    .padding(top = 4.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .clickable { st.verwijzingenVoor = Triple(b, c, v) }
-                    .padding(horizontal = 7.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Link, null, tint = k.accent, modifier = Modifier.size(16.dp))
-                Text(
-                    if (aantalVerw == 1) "  1 verwijzing hierheen"
-                    else "  $aantalVerw verwijzingen hierheen",
-                    fontSize = 13.sp, color = k.accent,
-                )
-            }
-        }
-    }
         Box(
             Modifier
                 .align(Alignment.TopEnd)
@@ -253,7 +232,6 @@ fun KanttekeningBlok(st: AppState, b: Int, c: Int, v: Int) {
     }
 }
 
-/** Het nummer en het trefwoord als vetgedrukte aanhef van een kanttekening. */
 private fun buildKopregel(noot: Note, k: Leeskleuren): AnnotatedString =
     buildAnnotatedString {
         withStyle(SpanStyle(color = k.accent, fontWeight = FontWeight.Bold)) {
@@ -264,9 +242,8 @@ private fun buildKopregel(noot: Note, k: Leeskleuren): AnnotatedString =
         }
     }
 
-/** Klein kaartje met de tekst van een aangehaalde plaats. */
 @Composable
-fun VersKijker(st: AppState, r: Ref, onSluit: () -> Unit) {
+fun VersKijker(st: AppState, r: Ref) {
     val k = LocalLeeskleuren.current
     val verzen = remember(r.b, r.c, r.v, r.end) {
         if (Bijbel.bookOrNull(r.b) == null) emptyList()
@@ -312,7 +289,6 @@ fun VersKijker(st: AppState, r: Ref, onSluit: () -> Unit) {
     }
 }
 
-/** Alle kanttekeningen elders die naar dit vers verwijzen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VerwijzingenBlad(st: AppState, b: Int, c: Int, v: Int, onSluit: () -> Unit) {

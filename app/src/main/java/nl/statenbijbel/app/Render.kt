@@ -6,12 +6,10 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 
-const val TAG_KT = "KT"      // kanttekeningmarkering
-const val TAG_REF = "REF"    // verwijzing in een kanttekening
+const val TAG_KT = "KT"
+const val TAG_REF = "REF"
 
 class Opmaak(
     val tekst: Color,
@@ -20,26 +18,19 @@ class Opmaak(
     val markerKleur: Color,
 )
 
-/**
- * Zet tekst + spans om in een AnnotatedString.
- *
- * De Godsnaam wordt als klein kapitaal gezet (HEERE), toegevoegde woorden
- * cursief, en kanttekeningen krijgen een aanklikbaar superscriptnummer.
- */
 private fun bouw(
     tekst: String,
     spans: List<Span>,
     o: Opmaak,
     toonMarkers: Boolean,
 ): AnnotatedString = buildAnnotatedString2 {
-    // Opmaakbereiken: overlappingen laten we vallen, de langste wint.
+    // Bij overlap wint het langste bereik.
     val bereiken = ArrayList<Span>()
     var grens = 0
     for (s in spans.filter { it.kind != 'n' && it.end > it.start }
         .sortedWith(compareBy({ it.start }, { -(it.end - it.start) }))) {
         if (s.start >= grens) { bereiken.add(s); grens = s.end }
     }
-    // Invoegpunten: de nummers van de kanttekeningen.
     val punten = ArrayList<Span>()
     if (toonMarkers) spans.filterTo(punten) { it.kind == 'n' }
     punten.sortBy { it.start }
@@ -51,32 +42,27 @@ private fun bouw(
 
     var vorigePunt = -1
     fun emitPunt(p: Span) {
-        // Twee kanttekeningnummers pal achter elkaar ("12") uit elkaar zetten.
+        // Anders lezen nummers 1 en 2 op dezelfde plek als "12".
         if (vorigePunt == p.start) {
-            val scheiding = "\u2009·\u2009"
             withStyle(
                 SpanStyle(
                     color = o.gedempt,
                     baselineShift = BaselineShift.Superscript,
                     fontSize = 0.70.em,
                 )
-            ) { append(scheiding) }
+            ) { append("\u2009·\u2009") }
         }
         vorigePunt = p.start
-        when (p.kind) {
-            'n' -> {
-                pushAnn(TAG_KT, p.value)
-                withStyle(
-                    SpanStyle(
-                        color = o.markerKleur,
-                        baselineShift = BaselineShift.Superscript,
-                        fontSize = 0.70.em,
-                        fontWeight = FontWeight.Medium,
-                    )
-                ) { append(p.value) }
-                popAnn()
-            }
-        }
+        pushAnn(TAG_KT, p.value)
+        withStyle(
+            SpanStyle(
+                color = o.markerKleur,
+                baselineShift = BaselineShift.Superscript,
+                fontSize = 0.70.em,
+                fontWeight = FontWeight.Medium,
+            )
+        ) { append(p.value) }
+        popAnn()
     }
 
     while (pos < n) {
@@ -118,7 +104,6 @@ private fun bouw(
     while (pi < punten.size) emitPunt(punten[pi++])
 }
 
-/** HEERE: hoofdletter plus klein kapitaal, zoals in de gedrukte Statenvertaling. */
 private fun Bouwer.kleinKapitaal(stuk: String) {
     if (stuk.isEmpty()) return
     append(stuk.first().uppercaseChar().toString())
@@ -134,9 +119,6 @@ fun versTekst(v: Verse, o: Opmaak, toonMarkers: Boolean): AnnotatedString =
 
 fun nootTekst(n: Note, o: Opmaak): AnnotatedString = bouw(n.text, n.spans, o, false)
 
-// ---------------------------------------------------------------------------
-// Een dunne schil om AnnotatedString.Builder zodat annotaties netjes
-// gestapeld kunnen worden.
 class Bouwer {
     val b = AnnotatedString.Builder()
     fun append(s: String) = b.append(s)
@@ -155,5 +137,3 @@ class Bouwer {
 
 inline fun buildAnnotatedString2(block: Bouwer.() -> Unit): AnnotatedString =
     Bouwer().apply(block).build()
-
-fun sp(v: Int): TextUnit = v.sp

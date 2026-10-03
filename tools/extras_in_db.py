@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 """
-Zet extras.json om in databaserijen: de berijmde psalmen, de gezangen, de
-Drie Formulieren van Enigheid, de oecumenische belijdenissen, de liturgische
-formulieren en de christelijke gebeden.
-
-Wordt aangeroepen vanuit build_db.py, zodat alles in dezelfde zoekindex komt.
-
-De bewijsteksten van de catechismus worden opgeslagen als kanttekeningen: de
-letter komt in het trefwoordveld, de aangehaalde plaatsen worden aanklikbare
-verwijzingen, en ze gaan ook in de xref-tabel zodat een bijbelvers laat zien
-dat het in de catechismus wordt aangehaald.
+extras.json -> rijen in bijbel.db; aangeroepen vanuit build_db.py.
+Bewijsteksten worden kanttekeningen (letter als trefwoord) en gaan ook in xref.
 """
 import json
 import os
@@ -80,7 +72,6 @@ def voeg_toe(extras, boeknr_van_slug, spans_str, norm, WORD,
                 tekst = rij["tekst"]
                 spans = []
 
-                # Bewijsteksten van de catechismus als kanttekeningen.
                 eigen = rij.get("verwijzingen") or p.get("verwijzingen") or {}
                 for merk in rij.get("merken", []):
                     plaatsen = eigen.get(merk["letter"]) or []

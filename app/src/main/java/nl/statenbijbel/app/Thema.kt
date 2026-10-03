@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-/** Kleuren die de leesweergave zelf gebruikt, buiten het Material-schema om. */
 data class Leeskleuren(
     val papier: Color,
     val inkt: Color,
@@ -37,11 +36,6 @@ val LocalLeeskleuren = staticCompositionLocalOf {
     )
 }
 
-/**
- * Het accent kleurt de kanttekeningnummers en de verwijzingen.
- * Elke kleur heeft een variant voor lichte en voor donkere
- * achtergronden, zodat hij in alle vijf de thema's leesbaar blijft.
- */
 enum class Accent(val label: String, val licht: Color, val donker: Color) {
     GOUD("Goud", Color(0xFF8A6431), Color(0xFFD9B566)),
     ROZEROOD("Rozerood", Color(0xFFB0355C), Color(0xFFEE8CA9)),
@@ -145,8 +139,7 @@ fun StatenBijbelTheme(content: @Composable () -> Unit) {
         secondaryContainer = if (Prefs.thema == Thema.SEPIA) Color(0xFFE8D8BA) else Color(0xFFEDE7DC),
         onSecondaryContainer = k.inkt,
     )
-    // Statusbalk- en navigatiepictogrammen meekleuren met het gekozen thema,
-    // niet met dat van het systeem.
+    // Statusbalk volgt het gekozen thema, niet dat van het systeem.
     val view = LocalView.current
     if (!view.isInEditMode) {
         LaunchedEffect(k.donker) {

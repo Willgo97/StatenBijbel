@@ -20,10 +20,7 @@ android {
         resourceConfigurations += listOf("nl")
     }
 
-    // De ondertekensleutel staat bewust niet in de repository.  Zet naast deze
-    // build een keystore.properties (zie keystore.properties.voorbeeld) om
-    // release-builds te ondertekenen; zonder dat bestand bouwt de release
-    // gewoon door, maar onondertekend.
+    // Zonder keystore.properties wordt de release onondertekend gebouwd.
     val sleutelConfig = Properties().apply {
         val f = file("keystore.properties")
         if (f.exists()) f.inputStream().use { load(it) }

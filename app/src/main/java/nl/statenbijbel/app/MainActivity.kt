@@ -6,19 +6,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,10 +19,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -40,7 +32,6 @@ import kotlinx.coroutines.withContext
 
 enum class Scherm { LEZEN, KIEZEN, ZOEKEN, BLADWIJZERS, INSTELLINGEN }
 
-/** Alle hoofdstukken van de bijbel achter elkaar, voor het doorbladeren. */
 object Index {
     lateinit var paren: List<Pair<Int, Int>>
         private set
@@ -48,8 +39,7 @@ object Index {
 
     fun bouw() {
         val l = ArrayList<Pair<Int, Int>>(1500)
-        // De tabel wordt op boeknummer geïndexeerd, niet op volgorde: het
-        // kerkboek begint bij 101.
+        // Op boeknummer, niet op volgorde: het kerkboek begint bij 101.
         val b = IntArray((Bijbel.books.maxOfOrNull { it.b } ?: 0) + 2)
         Bijbel.books.forEach { boek ->
             b[boek.b] = l.size
@@ -72,7 +62,6 @@ class AppState {
     var springNaarVers by mutableIntStateOf(0)
     var gekozenVers by mutableIntStateOf(0)
 
-    /** Vers waarvan de kanttekeningen tussen de tekst openstaan. */
     var kantB by mutableIntStateOf(0)
     var kantC by mutableIntStateOf(0)
     var kantV by mutableIntStateOf(0)
@@ -135,25 +124,25 @@ fun App(activity: ComponentActivity) {
     }
 
     if (!klaar || fout != null) {
-        Surface(color = androidx.compose.ui.graphics.Color(0xFFFBF7F0)) {
+        Surface(color = Color(0xFFFBF7F0)) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "StatenBijbel",
                         fontFamily = FontFamily.Serif,
                         fontSize = 26.sp,
-                        color = androidx.compose.ui.graphics.Color(0xFF2F4858),
+                        color = Color(0xFF2F4858),
                     )
                     Text(
                         fout ?: "de tekst wordt klaargezet…",
                         fontSize = 13.sp,
-                        color = androidx.compose.ui.graphics.Color(0xFF7A7168),
+                        color = Color(0xFF7A7168),
                         modifier = Modifier.padding(top = 10.dp),
                     )
                     if (fout == null) {
                         CircularProgressIndicator(
                             Modifier.padding(top = 22.dp),
-                            color = androidx.compose.ui.graphics.Color(0xFF8A6431),
+                            color = Color(0xFF8A6431),
                             strokeWidth = 2.dp,
                         )
                     }
@@ -166,7 +155,6 @@ fun App(activity: ComponentActivity) {
     StatenBijbelTheme {
         val st = remember {
             AppState().apply {
-                // Ook een plek in het kerkboek moet hersteld kunnen worden.
                 boek = if (Bijbel.bookOrNull(Prefs.boek) != null) Prefs.boek else 1
                 hoofdstuk = Prefs.hoofdstuk
                 springNaarVers = Prefs.vers

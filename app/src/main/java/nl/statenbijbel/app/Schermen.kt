@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -31,22 +30,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,27 +97,22 @@ private fun SchermKop(titel: String, onTerug: () -> Unit, extra: @Composable () 
     }
 }
 
-// ---------------------------------------------------------------- boekenkiezer
 @Composable
 fun KiesScherm(st: AppState) {
     val k = LocalLeeskleuren.current
     var vraag by remember { mutableStateOf("") }
-    val gekozenBoek = st.kiesBoek
 
-    if (gekozenBoek != 0) {
-        HoofdstukKiezer(st, gekozenBoek)
+    if (st.kiesBoek != 0) {
+        HoofdstukKiezer(st, st.kiesBoek)
         return
     }
 
     val treffer = remember(vraag) { if (vraag.isBlank()) null else Bijbel.parseReference(vraag) }
     val boeken = remember(vraag) {
         val deel = Bijbel.boekDeel(vraag)
-        when {
-            vraag.isBlank() -> Bijbel.books
-            deel.isEmpty() -> Bijbel.books
-            else -> Bijbel.boekKandidaten(deel).ifEmpty {
-                Bijbel.books.filter { it.zoekterm.contains(normaliseer(deel)) }
-            }
+        if (deel.isEmpty()) Bijbel.books
+        else Bijbel.boekKandidaten(deel).ifEmpty {
+            Bijbel.books.filter { it.zoekterm.contains(normaliseer(deel)) }
         }
     }
 
@@ -212,8 +203,7 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
     val boek = Bijbel.book(b)
     val titels = remember(b) { Bijbel.hoofdstukTitels(b) }
 
-    // Stukken met een eigen naam (gezangen, formulieren, gebeden) lezen beter
-    // als lijst; genummerde reeksen als raster.
+    // Gezangen, formulieren en gebeden als lijst met titels, de rest als raster.
     if (titels.isNotEmpty() && boek.chapters <= 20) {
         Column(Modifier.fillMaxSize()) {
             SchermKop(boek.name, { st.kiesBoek = 0 })
@@ -288,7 +278,6 @@ private fun HoofdstukKiezer(st: AppState, b: Int) {
     }
 }
 
-// ---------------------------------------------------------------------- zoeken
 @Composable
 fun ZoekScherm(st: AppState) {
     val k = LocalLeeskleuren.current
@@ -305,10 +294,9 @@ fun ZoekScherm(st: AppState) {
         if (vraag.trim().length < 2) { resultaten = emptyList(); gezocht = ""; return@LaunchedEffect }
         bezig = true
         delay(180)
-        val uitkomst = withContext(Dispatchers.Default) {
+        resultaten = withContext(Dispatchers.Default) {
             Bijbel.search(vraag, inKant, testament = bereik)
         }
-        resultaten = uitkomst
         gezocht = vraag
         bezig = false
     }
@@ -416,21 +404,20 @@ fun ZoekScherm(st: AppState) {
     }
 }
 
-/** Zet de gezochte woorden vet in het gevonden fragment. */
 fun markeerTreffers(tekst: String, vraag: String, accent: Color): AnnotatedString {
     val alle = Regex("[a-z0-9]+").findAll(normaliseer(vraag)).map { it.value }
         .filter { it.length > 1 }.toList()
     if (alle.isEmpty()) return AnnotatedString(tekst)
-    // Alleen het laatste woord is een begin-op zoekterm, net als bij het zoeken zelf.
+    // Net als bij het zoeken telt alleen het laatste woord als prefix.
     val openEind = vraag.isNotEmpty() && !vraag.last().isWhitespace()
     val exact = if (openEind) alle.dropLast(1).toSet() else alle.toSet()
     val begin = if (openEind) alle.last() else null
 
-    // Teken voor teken normaliseren, zodat de posities een-op-een blijven kloppen.
+    // Per teken normaliseren, zodat posities gelijk blijven aan die in tekst.
     val genorm = CharArray(tekst.length) { normLetter(tekst[it]) }.concatToString()
     val vlaggen = BooleanArray(tekst.length)
     var eerste = -1
-    // Alleen hele woorden markeren — "en" mag niet oplichten in "geworden".
+    // Hele woorden: "en" mag niet oplichten in "geworden".
     for (m in Regex("[a-z0-9]+").findAll(genorm)) {
         val w = m.value
         if (w in exact || (begin != null && w.startsWith(begin))) {
@@ -467,7 +454,6 @@ fun markeerTreffers(tekst: String, vraag: String, accent: Color): AnnotatedStrin
     }
 }
 
-/** Eén teken zonder accent en in kleine letter (lengte blijft gelijk). */
 private fun normLetter(c: Char): Char {
     if (c.code < 128) return c.lowercaseChar()
     val ontleed = java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD)
@@ -477,7 +463,6 @@ private fun normLetter(c: Char): Char {
     return basis.lowercaseChar()
 }
 
-// ----------------------------------------------------------------- bladwijzers
 @Composable
 fun BladwijzerScherm(st: AppState) {
     val k = LocalLeeskleuren.current
@@ -552,7 +537,7 @@ private fun Leeg(tekst: String) {
 private fun VersRij(
     b: Int, c: Int, v: Int, k: Leeskleuren, onClick: () -> Unit,
 ) {
-    // Bij een hoofdstukbladwijzer (v = 0) het eerste vers als voorproefje.
+    // Bij een hoofdstukbladwijzer (v = 0) vers 1 als voorproefje.
     val vers = remember(b, c, v) { Bijbel.verse(b, c, maxOf(v, 1)) }
     Column(
         Modifier
@@ -577,7 +562,6 @@ private fun VersRij(
     HorizontalDivider(color = k.scheiding)
 }
 
-// --------------------------------------------------------------- instellingen
 @Composable
 fun InstellingenScherm(st: AppState) {
     val k = LocalLeeskleuren.current
@@ -590,7 +574,7 @@ fun InstellingenScherm(st: AppState) {
         Column(
             Modifier
                 .weight(1f)
-                .verticalScrollSimpel(),
+                .verticalScroll(rememberScrollState()),
         ) {
             Kopje("Weergave")
             Regel("Thema") {
@@ -636,8 +620,6 @@ fun InstellingenScherm(st: AppState) {
     }
 }
 
-/** Bolletjes om de accentkleur te kiezen; het accent kleurt de
- *  kanttekeningnummers en de verwijzingen. */
 @Composable
 private fun AccentKiezer() {
     val k = LocalLeeskleuren.current
@@ -724,14 +706,10 @@ private fun Schuif(label: String, waarde: Int, min: Int, max: Int, onZet: (Int) 
             Text(label, fontSize = 15.sp, color = k.inkt, modifier = Modifier.weight(1f))
             Text("$waarde", fontSize = 13.sp, color = k.gedempt)
         }
-        androidx.compose.material3.Slider(
+        Slider(
             value = waarde.toFloat(),
             onValueChange = { onZet(it.toInt()) },
             valueRange = min.toFloat()..max.toFloat(),
         )
     }
 }
-
-@Composable
-private fun Modifier.verticalScrollSimpel(): Modifier =
-    this.verticalScroll(rememberScrollState())

@@ -1,8 +1,6 @@
 package nl.statenbijbel.app
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -10,49 +8,36 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,22 +52,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-/** Marge links en rechts van de tekst, en de breedte van de versnummerkolom. */
 val ZIJMARGE = 10.dp
 val VERSGOOT = 22.dp
 
@@ -94,7 +74,6 @@ fun leesStijl(): TextStyle = TextStyle(
     color = LocalLeeskleuren.current.inkt,
 )
 
-/** Zoekt de annotatie die op het aangeraakte punt staat. */
 private fun annotatieOp(
     lr: TextLayoutResult, tekst: AnnotatedString, pos: Offset, tag: String,
 ): String? {
@@ -110,10 +89,8 @@ private fun annotatieOp(
     return null
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Lezer(st: AppState) {
-    val k = LocalLeeskleuren.current
     val pager = rememberPagerState(
         initialPage = Index.index(st.boek, st.hoofdstuk)
     ) { Index.aantal }
@@ -133,23 +110,22 @@ fun Lezer(st: AppState) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            Bovenbalk(st, onLeesbalk = { toonLeesbalk = !toonLeesbalk })
-            AnimatedVisibility(toonLeesbalk) { Leesbalk() }
-            HorizontalPager(
-                state = pager,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxSize(),
-                beyondViewportPageCount = if (Prefs.veegNavigatie) 1 else 0,
-                userScrollEnabled = Prefs.veegNavigatie,
-                key = { it },
-            ) { page ->
-                val b = Index.boekVan(page)
-                val c = Index.hoofdstukVan(page)
-                HoofdstukPagina(st, b, c, actief = page == pager.currentPage)
-            }
+    Column(Modifier.fillMaxSize()) {
+        Bovenbalk(st, onLeesbalk = { toonLeesbalk = !toonLeesbalk })
+        AnimatedVisibility(toonLeesbalk) { Leesbalk() }
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxSize(),
+            beyondViewportPageCount = if (Prefs.veegNavigatie) 1 else 0,
+            userScrollEnabled = Prefs.veegNavigatie,
+            key = { it },
+        ) { page ->
+            HoofdstukPagina(
+                st, Index.boekVan(page), Index.hoofdstukVan(page),
+                actief = page == pager.currentPage,
+            )
         }
     }
 
@@ -189,7 +165,7 @@ private fun Bovenbalk(st: AppState, onLeesbalk: () -> Unit) {
                         fontSize = 19.sp,
                         color = k.inkt,
                         maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Icon(
@@ -200,7 +176,7 @@ private fun Bovenbalk(st: AppState, onLeesbalk: () -> Unit) {
                             .size(19.dp),
                     )
                 }
-                IconButton({ onLeesbalk() }) {
+                IconButton(onLeesbalk) {
                     Icon(Icons.Default.FormatSize, "Weergave", tint = k.gedempt)
                 }
                 IconButton({ st.scherm = Scherm.ZOEKEN }) {
@@ -229,9 +205,8 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
     val lijst = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Kanttekeningen open- of dichtklappen zonder dat het aangetikte vers
-    // wegschuift: klapt er hierboven een ander blok dicht, dan schuift de
-    // lijst mee zodat het vers op dezelfde hoogte blijft staan.
+    // Klapt er boven het aangetikte vers een blok dicht, dan blijft het vers
+    // toch op dezelfde hoogte staan.
     fun wisselKant(vers: Int, n: Int) {
         val i = verzen.indexOfFirst { it.v == vers } + 1 // +1 voor de kop
         val voor = lijst.layoutInfo.visibleItemsInfo.firstOrNull { it.index == i }?.offset
@@ -257,7 +232,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
     LazyColumn(
         state = lijst,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = ZIJMARGE, end = ZIJMARGE, top = 10.dp, bottom = 120.dp
         ),
     ) {
@@ -294,7 +269,7 @@ private fun HoofdstukPagina(st: AppState, b: Int, c: Int, actief: Boolean) {
                             .fillMaxWidth()
                             .padding(horizontal = 40.dp),
                     )
-                    // Een bladwijzer geldt voor het hele hoofdstuk.
+                    // Bladwijzers gelden per hoofdstuk (v = 0).
                     val isBlad = Prefs.isBladwijzer(b, c, 0)
                     IconButton(
                         { Prefs.wisselBladwijzer(b, c, 0) },
@@ -375,7 +350,7 @@ private fun VersRegel(
                             when {
                                 kt != null -> wisselKant(v.v, kt.toIntOrNull() ?: 0)
                                 noten.isNotEmpty() -> wisselKant(v.v, 0)
-                                // Zonder eigen kanttekeningen: laat zien wie hierheen verwijst.
+                                // Geen eigen kanttekeningen: toon wie hierheen verwijst.
                                 Bijbel.citations(v.b, v.c, v.v).isNotEmpty() ->
                                     st.verwijzingenVoor = Triple(v.b, v.c, v.v)
                             }
@@ -390,8 +365,6 @@ private fun VersRegel(
 
 @Composable
 private fun Voetregel(st: AppState, b: Int, c: Int) {
-    val k = LocalLeeskleuren.current
-    val boek = Bijbel.book(b)
     Row(
         Modifier
             .fillMaxWidth()

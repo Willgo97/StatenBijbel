@@ -6,7 +6,6 @@ import java.io.File
 import java.text.Normalizer
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Eén opmaakspan over de tekst: type, bereik, waarde. */
 class Span(val kind: Char, val start: Int, val end: Int, val value: String)
 
 class Book(
@@ -16,10 +15,8 @@ class Book(
 ) {
     val zoekterm: String = normaliseer("$name $abbr $alt $code")
 
-    /** Bijbelboek of een stuk uit het kerkboek (psalmberijming, belijdenis…). */
     val isBijbel: Boolean get() = soort == "bijbel"
 
-    /** Hoe heet één genummerd blok hier: een vers, een vraag, een artikel? */
     val eenheid: String
         get() = when {
             soort == "bijbel" || soort == "psalm" -> "vers"
@@ -28,7 +25,6 @@ class Book(
             else -> "gedeelte"
         }
 
-    /** In de bijbel heten ze kanttekeningen, in de belijdenis bewijsplaatsen. */
     val nootNaam: String get() = if (isBijbel) "kanttekening" else "bewijsplaats"
     val nootNaamMv: String get() = if (isBijbel) "kanttekeningen" else "bewijsplaatsen"
     val nootKort: String get() = if (isBijbel) "kantt." else "bewijspl."
@@ -44,7 +40,6 @@ class Note(
     val cw: String, val text: String, val spans: List<Span>,
 )
 
-/** Een verwijzing zoals hij in een kanttekening staat. */
 class Ref(val b: Int, val c: Int, val v: Int, val end: Int) {
     companion object {
         fun parse(s: String): Ref? {
@@ -63,7 +58,6 @@ class Hit(
     val noteNo: Int = 0, val catchWord: String = "",
 )
 
-/** Waar wordt dit vers vanuit een kanttekening aangehaald? */
 class Citation(val b: Int, val c: Int, val v: Int, val n: Int, val cw: String, val text: String)
 
 fun normaliseer(s: String): String =
@@ -106,13 +100,7 @@ object Bijbel {
         private set
     private lateinit var byNum: Map<Int, Book>
 
-    val isReady get() = ready.get()
-
-    /**
-     * Kopieert de database uit de assets en opent hem. Eenmalig, ~1 seconde.
-     * Bij elke nieuwe versie van de app wordt hij opnieuw uitgepakt, zodat een
-     * bijgewerkte tekst altijd doorkomt.
-     */
+    // Bij elke app-update opnieuw uitpakken, anders blijft een oude tekst staan.
     fun open(ctx: Context) {
         if (ready.get()) return
         val bijgewerkt = runCatching {
@@ -156,11 +144,9 @@ object Bijbel {
     fun book(b: Int): Book = byNum[b] ?: books[0]
     fun bookOrNull(b: Int): Book? = byNum[b]
 
-    /** "Joh. 3:16" */
     fun ref(b: Int, c: Int, v: Int, end: Int = 0): String {
         val bk = byNum[b] ?: return ""
-        // Een punt alleen bij een echte inkorting van de naam: "Joh. 3:16",
-        // maar "Ruth 1:1", "HC 1:1" en "Ps. ber. 23:1".
+        // "Joh. 3:16", maar "Ruth 1:1", "HC 1:1" en "Ps. ber. 23:1".
         val punt = if (!bk.abbr.endsWith(".") && !bk.abbr.equals(bk.name, true) &&
             bk.name.startsWith(bk.abbr, ignoreCase = true)
         ) "." else ""
@@ -223,7 +209,6 @@ object Bijbel {
 
     private val titelCache = HashMap<Int, Map<Int, String>>()
 
-    /** Opschrift van een hoofdstuk: "Zondag 1", de naam van een formulier… */
     fun hoofdstukTitels(b: Int): Map<Int, String> = synchronized(titelCache) {
         titelCache.getOrPut(b) {
             val m = HashMap<Int, String>()
@@ -237,13 +222,6 @@ object Bijbel {
 
     fun hoofdstukTitel(b: Int, c: Int): String? = hoofdstukTitels(b)[c]
 
-    fun chapterVerseCount(b: Int, c: Int): Int =
-        db.rawQuery("SELECT verses FROM chapters WHERE b=? AND c=?",
-            arrayOf(b.toString(), c.toString())).use {
-            if (it.moveToFirst()) it.getInt(0) else 0
-        }
-
-    /** Kanttekeningen elders die naar dit vers verwijzen. */
     fun citations(b: Int, c: Int, v: Int): List<Citation> =
         db.rawQuery(
             "SELECT n.b,n.c,n.v,n.n,n.cw,n.text FROM xref x JOIN notes n ON n.nid=x.nid " +
@@ -266,20 +244,6 @@ object Bijbel {
             l
         }
 
-    /** Verwijzingen die vanuit de kanttekeningen bij dit vers naar buiten wijzen. */
-    fun refsFrom(b: Int, c: Int, v: Int): List<Ref> =
-        db.rawQuery(
-            "SELECT DISTINCT tb,tc,tv,tend FROM xref WHERE b=? AND c=? AND v=? " +
-                "ORDER BY tb,tc,tv",
-            arrayOf(b.toString(), c.toString(), v.toString())
-        ).use { cur ->
-            val l = ArrayList<Ref>()
-            while (cur.moveToNext())
-                l.add(Ref(cur.getInt(0), cur.getInt(1), cur.getInt(2), cur.getInt(3)))
-            l
-        }
-
-    // ------------------------------------------------------------------ zoeken
     private fun postings(table: String, term: String, prefix: Boolean): IntArray? {
         val sql: String
         val args: Array<String>
@@ -348,11 +312,7 @@ object Bijbel {
         return out.copyOf(n)
     }
 
-    /**
-     * Zoekt in de bijbeltekst of in de kanttekeningen.
-     * Het laatste woord wordt als prefix behandeld, zodat de resultaten
-     * al meelopen terwijl er getypt wordt.
-     */
+    // Het laatste woord telt als prefix, zodat resultaten meelopen met het typen.
     fun search(
         query: String, inNotes: Boolean, limit: Int = 400,
         bookFilter: Int = 0, testament: String = "",
@@ -373,13 +333,12 @@ object Bijbel {
         }
         val all = ids ?: return emptyList()
 
-        // Woordgroep: staan de termen ook echt naast elkaar?
+        // Treffers waarin de woorden niet naast elkaar staan, komen achteraan.
         val phrase = terms.joinToString(" ")
         val wantPhrase = terms.size > 1
 
         val hits = ArrayList<Hit>(minOf(all.size, limit))
         val extra = ArrayList<Hit>()
-        var scanned = 0
         val chunk = 900
         var index = 0
         while (index < all.size && hits.size < limit) {
@@ -399,7 +358,6 @@ object Bijbel {
                     val hit = if (inNotes)
                         Hit(b, cur.getInt(1), cur.getInt(2), text, cur.getInt(4), cur.getString(5) ?: "")
                     else Hit(b, cur.getInt(1), cur.getInt(2), text)
-                    scanned++
                     if (wantPhrase && !normaliseer(text).contains(phrase)) {
                         if (extra.size < limit) extra.add(hit)
                     } else if (hits.size < limit) hits.add(hit)
@@ -410,35 +368,15 @@ object Bijbel {
         return hits
     }
 
-    fun searchCount(query: String, inNotes: Boolean): Int {
-        val q = normaliseer(query).trim()
-        if (q.length < 2) return 0
-        val terms = WORDS.findAll(q).map { it.value }.toList()
-        if (terms.isEmpty()) return 0
-        val table = if (inNotes) "widx_n" else "widx_v"
-        var ids: IntArray? = null
-        terms.forEachIndexed { i, t ->
-            val prefix = !q.last().isWhitespace() && i == terms.lastIndex && t.length >= 2
-            val p = postings(table, t, prefix) ?: return 0
-            ids = if (ids == null) p else intersect(ids!!, p)
-        }
-        return ids?.size ?: 0
-    }
-
-    // --------------------------------------------------------- plaats zoeken
     private fun compact(s: String) = normaliseer(s).replace(NIETLETTER, "")
 
-    /** Het letterdeel vooraan: "1kon 18" -> "1kon", "joh 3:16" -> "joh". */
+    // "1kon 18" -> "1kon"
     fun boekDeel(invoer: String): String {
         val s = normaliseer(invoer).trim()
         val laatste = s.indexOfLast { it in 'a'..'z' }
         return if (laatste < 0) "" else s.substring(0, laatste + 1).trim()
     }
 
-    /**
-     * Boeken die bij een ingetypte naam passen. Spaties en punten doen niet
-     * mee, zodat "1kon", "1 Kon." en "eerste koningen" alle drie werken.
-     */
     fun boekKandidaten(invoer: String): List<Book> {
         val q = compact(invoer)
         if (q.isEmpty()) return emptyList()
@@ -452,11 +390,10 @@ object Bijbel {
             }
             if (viaAlt.isNotEmpty()) return viaAlt
         }
-        // De gebruiker typte meer dan de afkorting: "1kon18".
+        // "1kon18": meer getypt dan de afkorting.
         return books.filter { bk -> hoofd(bk).any { it.length >= 3 && q.startsWith(it) } }
     }
 
-    /** "joh 3:16", "ps23", "1kon 18", "genesis" -> (boek, hoofdstuk, vers). */
     fun parseReference(invoer: String): Triple<Int, Int, Int>? {
         val s = normaliseer(invoer).trim()
         if (s.isEmpty()) return null

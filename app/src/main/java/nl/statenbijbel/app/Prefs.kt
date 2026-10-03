@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -17,7 +16,6 @@ class Bladwijzer(val b: Int, val c: Int, val v: Int, val tijd: Long) {
     val sleutel get() = "$b.$c.$v"
 }
 
-/** Instellingen en persoonlijke gegevens. Alles lokaal, niets gaat het toestel uit. */
 object Prefs {
     private lateinit var sp: SharedPreferences
 
@@ -27,7 +25,7 @@ object Prefs {
         private set
     var tekstGrootte by mutableIntStateOf(19)
         private set
-    var regelHoogte by mutableIntStateOf(150)   // procenten
+    var regelHoogte by mutableIntStateOf(150) // procent
     var schreef by mutableStateOf(true)
         private set
     var toonKantMarkers by mutableStateOf(true)
@@ -35,8 +33,6 @@ object Prefs {
     var doorlopend by mutableStateOf(false)
         private set
     var schermAan by mutableStateOf(false)
-        private set
-    var kantInline by mutableStateOf(false)
         private set
     var veegNavigatie by mutableStateOf(false)
         private set
@@ -60,7 +56,6 @@ object Prefs {
         toonKantMarkers = sp.getBoolean("markers", true)
         doorlopend = sp.getBoolean("doorlopend", false)
         schermAan = sp.getBoolean("schermaan", false)
-        kantInline = sp.getBoolean("kantinline", false)
         veegNavigatie = sp.getBoolean("vegen", false)
         boek = sp.getInt("boek", 1)
         hoofdstuk = sp.getInt("hoofdstuk", 1)
@@ -75,7 +70,6 @@ object Prefs {
                 )
             }
         }
-        // Markeringen bestaan niet meer; wat er nog van over is, opruimen.
         if (sp.contains("markeringen")) edit { remove("markeringen") }
         geschiedenis.clear()
         sp.getString("geschiedenis", "")!!.split(';').filter { it.isNotBlank() }
@@ -98,7 +92,6 @@ object Prefs {
     fun zetMarkers(v: Boolean) { toonKantMarkers = v; edit { putBoolean("markers", v) } }
     fun zetDoorlopend(v: Boolean) { doorlopend = v; edit { putBoolean("doorlopend", v) } }
     fun zetSchermAan(v: Boolean) { schermAan = v; edit { putBoolean("schermaan", v) } }
-    fun zetKantInline(v: Boolean) { kantInline = v; edit { putBoolean("kantinline", v) } }
     fun zetVegen(v: Boolean) { veegNavigatie = v; edit { putBoolean("vegen", v) } }
 
     fun onthoudPlek(b: Int, c: Int, v: Int) {

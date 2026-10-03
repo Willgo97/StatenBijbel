@@ -1,24 +1,12 @@
 #!/usr/bin/env python3
 """
-Bouwt bijbel.db — de complete offline database voor de StatenBijbel-app.
+OSIS-bestand van de Statenvertaling (github.com/Isidore-Guild/statenvertaling)
+-> bijbel.db.
 
-Bron : https://github.com/Isidore-Guild/statenvertaling  (CC0-1.0)
-       Statenvertaling 1888, met de kanttekeningen en verwijzingen.
+De bron telt verzen als de KJV; de echte SV-nummers staan als [03:2]-markeringen
+in de tekst. Daarmee worden verzen en verwijzingen hernummerd.
 
-Twee dingen die dit script oplost:
-
-1. Versnummering.  Het OSIS-bestand gebruikt de Engelse (KJV) telling.  De
-   Statenvertaling volgt de Hebreeuwse telling: in de Psalmen is het opschrift
-   vers 1, en op ~13 plaatsen loopt de telling anders.  De echte SV-nummers
-   staan als [03:2]-markeringen in de tekst.  Die worden hier uitgelezen; de
-   verzen worden opnieuw ingedeeld en alle 48.000 kruisverwijzingen worden
-   meevertaald naar SV-nummering.
-
-2. Opmaak.  In plaats van HTML slaan we platte tekst op plus een compacte
-   'spans'-string (type,start,eind,waarde).  De app rendert dat native met
-   Compose AnnotatedString — geen WebView, geen HTML-parser.
-
-Spantypes:
+Spantypes (type,start,eind,waarde):
     i  cursief (door de vertalers toegevoegd woord)
     d  Godsnaam HEERE (kleinkapitaal)
     a  acrostichon-letter (Ps. 119, Klaagliederen, Spr. 31)
@@ -146,9 +134,7 @@ def norm(s):
     return s.lower()
 
 
-# --------------------------------------------------------------------------
 class Builder:
-    """Verzamelt platte tekst plus opmaak-spans (type, start, eind, waarde)."""
 
     def __init__(self):
         self.buf = []
@@ -240,9 +226,7 @@ def segments(full, ochap, overs):
     for i, m in enumerate(cuts):
         hi = cuts[i + 1].start() if i + 1 < len(cuts) else len(full)
         mc, mv = int(m.group(1)), int(m.group(2))
-        # Zetfout in de bron: Ps. 84:7 staat gemarkeerd als [086:7].  Een
-        # markering mag hooguit een hoofdstuk van het OSIS-hoofdstuk afwijken
-        # (grensverschuiving); verder weg is altijd een typefout.
+        # Meer dan één hoofdstuk afwijking is een zetfout (Ps. 84:7 staat als [086:7]).
         if abs(mc - ochap) > 1:
             stats["markering_gecorrigeerd"] += 1
             mc = ochap
@@ -326,8 +310,7 @@ LEESTEKEN_SPATIE = re.compile(r"[ \u00a0]+(?=[.,;:!?])|(?<=[(\[])[ \u00a0]+|[ \u
 
 
 def net_leestekens(text, spans):
-    """De brontranscriptie zet een spatie voor leestekens ("Zie Gen 1:2 .").
-    Die halen we weg; de spanposities schuiven mee."""
+    """'Zie Gen 1:2 .' -> 'Zie Gen 1:2.'; spans schuiven mee."""
     weg = set()
     for m in LEESTEKEN_SPATIE.finditer(text):
         weg.update(range(m.start(), m.end()))
@@ -353,8 +336,7 @@ def net_leestekens(text, spans):
     return nieuw_text, nieuw_spans
 
 
-# De Hebreeuwse letternamen boven elke strofe van Psalm 119.  In de brontekst
-# staan ze daar als gewone tekst; elders (Klaagl., Spr. 31) al als <title>.
+# In Ps. 119 staan de letternamen als gewone tekst, elders als <title>.
 ACROSTICHON = re.compile(
     r"^(Aleph|Beth|Gimel|Daleth|He|Vau|Zain|Cheth|Teth|Jod|Caph|Lamed|Mem|Nun|"
     r"Samech|Ain|Pe|Tsade|Koph|Resch|Schin|Thau)\. ")
@@ -373,15 +355,13 @@ WOORD_IN_TEKST = re.compile(r"[0-9A-Za-z\u00c0-\u024f]+")
 
 
 def los(s):
-    """Ruwe sleutel: zonder accenten en zonder verdubbelde letters.
-    Zo valt het trefwoord 'Hamaaloth' samen met de verstekst 'Hammaaloth'."""
+    """Zonder accenten en dubbele letters: 'Hamaaloth' == 'Hammaaloth'."""
     s = norm(s)
     s = re.sub(r"[^a-z0-9]+", "", s)
     return re.sub(r"(.)\1+", r"\1", s)
 
 
 def zoek_los(text, ntext, needle, cursor):
-    """Laatste redmiddel: een woord in het vers met dezelfde ruwe sleutel."""
     doel = los(needle.split()[-1] if needle.split() else needle)
     if len(doel) < 3:
         return -1, 0

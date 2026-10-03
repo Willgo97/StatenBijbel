@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 """
-Haalt de 'achterin het kerkboek'-stukken op: de berijmde psalmen van 1773,
-de gezangen, de Drie Formulieren van Enigheid, de oecumenische belijdenissen,
-de liturgische formulieren en de christelijke gebeden.
-
-Bron: bijbel-statenvertaling.com (GBS Bijbel Online) — dezelfde editie als het
-gedrukte kerkboek. De teksten zelf zijn publiek domein (1773 en ouder).
-
-De pagina's worden op schijf bewaard, zodat opnieuw ontleden geen nieuw
-netwerkverkeer kost.  Gebruik:
+Kerkboek (psalmberijming 1773, belijdenissen, formulieren, gebeden) van
+bijbel-statenvertaling.com -> extras.json. Pagina's worden in cache-extras/ bewaard.
 
     python3 tools/haal_extras.py ophalen   # eenmalig, ~280 pagina's
     python3 tools/haal_extras.py ontleden  # maakt extras.json
@@ -153,7 +146,6 @@ def ophalen():
     print(f"Klaar: {nieuw} nieuwe pagina's, {len(lijst)} totaal.")
 
 
-# ------------------------------------------------------------------ ontleden
 SCHOON = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
 
 
@@ -189,8 +181,7 @@ def titel_van(s):
 
 
 def plat(h):
-    """Opmaak weg.  Alleen een echte <br> telt als regelovergang; de
-    witruimte waarmee de bron-HTML is ingesprongen niet."""
+    """Alleen <br> is een regelovergang, de inspringing van de HTML niet."""
     h = re.sub(r"<br\s*/?>", "\x02", h)
     h = re.sub(r"<[^>]+>", "", h)
     h = unescape(h)
@@ -261,20 +252,16 @@ def ontleed_pagina(groep, sleutel):
     else:
         rijen = []
         for n, ruw in blokken:
-            # De bewijsteksten staan in een eigen blok áchter de vraag, en de
-            # letters beginnen bij elke vraag opnieuw bij a.  Ze horen dus bij
-            # dít blok, niet bij de pagina.
+            # De letters beginnen per vraag opnieuw bij a.
             knip = ruw.find('<div class="verse-references"')
             eigen_verw = verwijzingen_van(ruw[knip:]) if knip != -1 else {}
             if knip != -1:
                 ruw = ruw[:knip]
-            # De verwijsletters eerst vervangen door een merkteken, zodat hun
-            # plaats in de tekst bewaard blijft na het strippen van de opmaak.
+            # Merkteken, zodat de plaats van de letter het strippen overleeft.
             gemerkt = re.sub(r'<span class="verwijzing">\s*([a-z]+)\s*</span>',
                              lambda m: "\x01" + m.group(1) + "\x01", ruw)
             tekst = plat(gemerkt)
-            # Eerst de witruimte opschonen, pas daarna de plaatsen uitlezen —
-            # anders verschuiven de markeringen.
+            # Eerst witruimte opschonen, anders verschuiven de markeringen.
             tekst = re.sub(r"[ \t]+(\x01[a-z]+\x01)", r"\1", tekst)
             tekst = re.sub(r"[ \t]+([,.;:!?])", r"\1", tekst)
             tekst = re.sub(r"[ \t]{2,}", " ", tekst)
